@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.audit.rectification.mapper.RectClosureMapper">
+
+    <resultMap type="com.audit.rectification.domain.RectClosure" id="RectClosureResult">
+        <id     property="closureId"       column="closure_id"        />
+        <result property="issueId"         column="issue_id"          />
+        <result property="taskId"          column="task_id"           />
+        <result property="applyContent"    column="apply_content"     />
+        <result property="status"          column="status"            />
+        <result property="applyUserId"     column="apply_user_id"     />
+        <result property="applyTime"       column="apply_time"        />
+        <result property="auditUserId"     column="audit_user_id"     />
+        <result property="auditTime"       column="audit_time"        />
+        <result property="auditResult"     column="audit_result"      />
+        <result property="auditOpinion"    column="audit_opinion"     />
+        <result property="reRectRequired"  column="re_rect_required"  />
+        <result property="delFlag"         column="del_flag"          />
+        <result property="createBy"        column="create_by"         />
+        <result property="createTime"      column="create_time"       />
+        <result property="updateBy"        column="update_by"         />
+        <result property="updateTime"      column="update_time"       />
+        <result property="remark"          column="remark"            />
+    </resultMap>
+
+    <sql id="selectRectClosureVo">
+        select closure_id, issue_id, task_id, apply_content, status,
+        apply_user_id, apply_time,
+        audit_user_id, audit_time, audit_result, audit_opinion, re_rect_required,
+        del_flag, create_by, create_time, update_by, update_time, remark
+        from rect_closure
+    </sql>
+
+    <select id="selectRectClosureList" parameterType="com.audit.rectification.domain.RectClosure" resultMap="RectClosureResult">
+        <include refid="selectRectClosureVo"/>
+        <where>
+            <if test="issueId != null">and issue_id = #{issueId}</if>
+            <if test="taskId != null">and task_id = #{taskId}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+            <if test="auditResult != null and auditResult != ''">and audit_result = #{auditResult}</if>
+            and del_flag = '0'
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectRectClosureById" parameterType="Long" resultMap="RectClosureResult">
+        <include refid="selectRectClosureVo"/>
+        where closure_id = #{closureId}
+    </select>
+
+    <select id="selectRectClosureByIssueId" parameterType="Long" resultMap="RectClosureResult">
+        <include refid="selectRectClosureVo"/>
+        where issue_id = #{issueId} and del_flag = '0'
+        order by create_time desc
+    </select>
+
+    <insert id="insertRectClosure" parameterType="com.audit.rectification.domain.RectClosure" useGeneratedKeys="true" keyProperty="closureId">
+        insert into rect_closure (
+            <if test="issueId != null">issue_id,</if>
+            <if test="taskId != null">task_id,</if>
+            <if test="applyContent != null and applyContent != ''">apply_content,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="applyUserId != null">apply_user_id,</if>
+            <if test="reRectRequired != null and reRectRequired != ''">re_rect_required,</if>
+            <if test="delFlag != null and delFlag != ''">del_flag,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            apply_time,
+            create_time
+        )values(
+            <if test="issueId != null">#{issueId},</if>
+            <if test="taskId != null">#{taskId},</if>
+            <if test="applyContent != null and applyContent != ''">#{applyContent},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="applyUserId != null">#{applyUserId},</if>
+            <if test="reRectRequired != null and reRectRequired != ''">#{reRectRequired},</if>
+            <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate(),
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateRectClosure" parameterType="com.audit.rectification.domain.RectClosure">
+        update rect_closure
+        <set>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="auditUserId != null">audit_user_id = #{auditUserId},</if>
+            <if test="auditTime != null">audit_time = #{auditTime},</if>
+            <if test="auditResult != null and auditResult != ''">audit_result = #{auditResult},</if>
+            <if test="auditOpinion != null">audit_opinion = #{auditOpinion},</if>
+            <if test="reRectRequired != null">re_rect_required = #{reRectRequired},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where closure_id = #{closureId}
+    </update>
+
+    <delete id="deleteRectClosureByIds" parameterType="Long">
+        update rect_closure set del_flag = '2' where closure_id in
+        <foreach item="closureId" collection="array" open="(" separator="," close=")">
+            #{closureId}
+        </foreach>
+    </delete>
+
+</mapper>

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.audit.rectification.mapper.RectMaterialMapper">
+
+    <resultMap type="com.audit.rectification.domain.RectMaterial" id="RectMaterialResult">
+        <id     property="materialId"    column="material_id"     />
+        <result property="taskId"        column="task_id"         />
+        <result property="issueId"       column="issue_id"        />
+        <result property="materialType"  column="material_type"   />
+        <result property="fileName"      column="file_name"       />
+        <result property="filePath"      column="file_path"       />
+        <result property="fileSize"      column="file_size"       />
+        <result property="fileExt"       column="file_ext"        />
+        <result property="uploadUserId"  column="upload_user_id"  />
+        <result property="uploadTime"    column="upload_time"     />
+        <result property="delFlag"       column="del_flag"        />
+        <result property="createBy"      column="create_by"       />
+        <result property="createTime"    column="create_time"     />
+        <result property="remark"        column="remark"          />
+    </resultMap>
+
+    <sql id="selectRectMaterialVo">
+        select material_id, task_id, issue_id, material_type, file_name,
+        file_path, file_size, file_ext, upload_user_id, upload_time,
+        del_flag, create_by, create_time, remark
+        from rect_material
+    </sql>
+
+    <select id="selectRectMaterialList" parameterType="com.audit.rectification.domain.RectMaterial" resultMap="RectMaterialResult">
+        <include refid="selectRectMaterialVo"/>
+        <where>
+            <if test="issueId != null">and issue_id = #{issueId}</if>
+            <if test="taskId != null">and task_id = #{taskId}</if>
+            <if test="fileName != null and fileName != ''">and file_name like concat('%', #{fileName}, '%')</if>
+            <if test="materialType != null and materialType != ''">and material_type = #{materialType}</if>
+            and del_flag = '0'
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectRectMaterialById" parameterType="Long" resultMap="RectMaterialResult">
+        <include refid="selectRectMaterialVo"/> where material_id = #{materialId}
+    </select>
+
+    <select id="selectRectMaterialByIssueId" parameterType="Long" resultMap="RectMaterialResult">
+        <include refid="selectRectMaterialVo"/>
+        where issue_id = #{issueId} and del_flag = '0'
+        order by create_time desc
+    </select>
+
+    <insert id="insertRectMaterial" parameterType="com.audit.rectification.domain.RectMaterial" useGeneratedKeys="true" keyProperty="materialId">
+        insert into rect_material (
+            <if test="taskId != null">task_id,</if>
+            <if test="issueId != null">issue_id,</if>
+            <if test="materialType != null and materialType != ''">material_type,</if>
+            <if test="fileName != null and fileName != ''">file_name,</if>
+            <if test="filePath != null and filePath != ''">file_path,</if>
+            <if test="fileSize != null">file_size,</if>
+            <if test="fileExt != null and fileExt != ''">file_ext,</if>
+            <if test="uploadUserId != null">upload_user_id,</if>
+            <if test="delFlag != null and delFlag != ''">del_flag,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            upload_time,
+            create_time
+        )values(
+            <if test="taskId != null">#{taskId},</if>
+            <if test="issueId != null">#{issueId},</if>
+            <if test="materialType != null and materialType != ''">#{materialType},</if>
+            <if test="fileName != null and fileName != ''">#{fileName},</if>
+            <if test="filePath != null and filePath != ''">#{filePath},</if>
+            <if test="fileSize != null">#{fileSize},</if>
+            <if test="fileExt != null and fileExt != ''">#{fileExt},</if>
+            <if test="uploadUserId != null">#{uploadUserId},</if>
+            <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate(),
+            sysdate()
+        )
+    </insert>
+
+    <delete id="deleteRectMaterialByIds" parameterType="Long">
+        update rect_material set del_flag = '2' where material_id in
+        <foreach item="materialId" collection="array" open="(" separator="," close=")">#{materialId}</foreach>
+    </delete>
+
+</mapper>

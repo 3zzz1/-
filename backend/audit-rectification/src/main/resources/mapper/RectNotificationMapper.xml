@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.audit.rectification.mapper.RectNotificationMapper">
+
+    <resultMap type="com.audit.rectification.domain.RectNotification" id="RectNotificationResult">
+        <id     property="notificationId"   column="notification_id"   />
+        <result property="taskId"           column="task_id"           />
+        <result property="issueId"          column="issue_id"          />
+        <result property="notifyType"       column="notify_type"       />
+        <result property="title"            column="title"             />
+        <result property="content"          column="content"           />
+        <result property="recipientUserId"  column="recipient_user_id" />
+        <result property="recipientPhone"   column="recipient_phone"   />
+        <result property="sendStatus"       column="send_status"       />
+        <result property="sendTime"         column="send_time"         />
+        <result property="readStatus"       column="read_status"       />
+        <result property="readTime"         column="read_time"         />
+        <result property="createTime"       column="create_time"       />
+    </resultMap>
+
+    <sql id="selectRectNotificationVo">
+        select notification_id, task_id, issue_id, notify_type, title, content,
+        recipient_user_id, recipient_phone, send_status, send_time,
+        read_status, read_time, create_time
+        from rect_notification
+    </sql>
+
+    <select id="selectRectNotificationList" parameterType="com.audit.rectification.domain.RectNotification" resultMap="RectNotificationResult">
+        <include refid="selectRectNotificationVo"/>
+        <where>
+            <if test="recipientUserId != null">and recipient_user_id = #{recipientUserId}</if>
+            <if test="taskId != null">and task_id = #{taskId}</if>
+            <if test="issueId != null">and issue_id = #{issueId}</if>
+            <if test="notifyType != null and notifyType != ''">and notify_type = #{notifyType}</if>
+            <if test="readStatus != null and readStatus != ''">and read_status = #{readStatus}</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertRectNotification" parameterType="com.audit.rectification.domain.RectNotification" useGeneratedKeys="true" keyProperty="notificationId">
+        insert into rect_notification (
+            <if test="taskId != null">task_id,</if>
+            <if test="issueId != null">issue_id,</if>
+            <if test="notifyType != null and notifyType != ''">notify_type,</if>
+            <if test="title != null and title != ''">title,</if>
+            <if test="content != null and content != ''">content,</if>
+            <if test="recipientUserId != null">recipient_user_id,</if>
+            <if test="recipientPhone != null and recipientPhone != ''">recipient_phone,</if>
+            <if test="sendStatus != null and sendStatus != ''">send_status,</if>
+            <if test="readStatus != null and readStatus != ''">read_status,</if>
+            create_time
+        )values(
+            <if test="taskId != null">#{taskId},</if>
+            <if test="issueId != null">#{issueId},</if>
+            <if test="notifyType != null and notifyType != ''">#{notifyType},</if>
+            <if test="title != null and title != ''">#{title},</if>
+            <if test="content != null and content != ''">#{content},</if>
+            <if test="recipientUserId != null">#{recipientUserId},</if>
+            <if test="recipientPhone != null and recipientPhone != ''">#{recipientPhone},</if>
+            <if test="sendStatus != null and sendStatus != ''">#{sendStatus},</if>
+            <if test="readStatus != null and readStatus != ''">#{readStatus},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateRectNotification" parameterType="com.audit.rectification.domain.RectNotification">
+        update rect_notification
+        <set>
+            <if test="readStatus != null and readStatus != ''">read_status = #{readStatus},</if>
+            <if test="readTime != null">read_time = #{readTime},</if>
+        </set>
+        where notification_id = #{notificationId}
+    </update>
+
+    <select id="selectUnreadCount" parameterType="Long" resultType="int">
+        select count(*) from rect_notification
+        where recipient_user_id = #{userId}
+        and (read_status is null or read_status = '0')
+    </select>
+
+</mapper>

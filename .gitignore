@@ -1,0 +1,29 @@
+# 后端
+backend/*/target/
+backend/*/.classpath
+backend/*/.project
+backend/*/.settings/
+*.class
+*.jar
+*.war
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 临时文件
+temp/
+tmp/

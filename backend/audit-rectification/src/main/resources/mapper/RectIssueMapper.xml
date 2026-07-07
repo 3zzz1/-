@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.audit.rectification.mapper.RectIssueMapper">
+
+    <resultMap type="com.audit.rectification.domain.RectIssue" id="RectIssueResult">
+        <id     property="issueId"           column="issue_id"            />
+        <result property="issueNo"           column="issue_no"            />
+        <result property="sourceType"        column="source_type"         />
+        <result property="sourceProjectId"   column="source_project_id"   />
+        <result property="sourceDesc"        column="source_desc"         />
+        <result property="issueTitle"        column="issue_title"         />
+        <result property="issueDesc"         column="issue_desc"          />
+        <result property="issueAmount"       column="issue_amount"        />
+        <result property="legalBasis"        column="legal_basis"         />
+        <result property="responsibleDeptId" column="responsible_dept_id" />
+        <result property="responsiblePerson" column="responsible_person"  />
+        <result property="issueCategory"     column="issue_category"      />
+        <result property="riskLevel"         column="risk_level"          />
+        <result property="deadline"          column="deadline"            />
+        <result property="status"            column="status"              />
+        <result property="closureDate"       column="closure_date"        />
+        <result property="delFlag"           column="del_flag"            />
+        <result property="createBy"          column="create_by"           />
+        <result property="createTime"        column="create_time"         />
+        <result property="updateBy"          column="update_by"           />
+        <result property="updateTime"        column="update_time"         />
+        <result property="remark"            column="remark"              />
+    </resultMap>
+
+    <sql id="selectRectIssueVo">
+        select issue_id, issue_no, source_type, source_project_id, source_desc,
+        issue_title, issue_desc, issue_amount, legal_basis, responsible_dept_id,
+        responsible_person, issue_category, risk_level, deadline, status, closure_date,
+        del_flag, create_by, create_time, update_by, update_time, remark
+        from rect_issue
+    </sql>
+
+    <select id="selectRectIssueList" parameterType="com.audit.rectification.domain.RectIssue" resultMap="RectIssueResult">
+        <include refid="selectRectIssueVo"/>
+        <where>
+            <if test="issueNo != null and issueNo != ''">and issue_no like concat('%', #{issueNo}, '%')</if>
+            <if test="issueTitle != null and issueTitle != ''">and issue_title like concat('%', #{issueTitle}, '%')</if>
+            <if test="sourceType != null and sourceType != ''">and source_type = #{sourceType}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+            <if test="issueCategory != null and issueCategory != ''">and issue_category = #{issueCategory}</if>
+            <if test="riskLevel != null and riskLevel != ''">and risk_level = #{riskLevel}</if>
+            <if test="responsibleDeptId != null">and responsible_dept_id = #{responsibleDeptId}</if>
+            <if test="responsiblePerson != null and responsiblePerson != ''">and responsible_person like concat('%', #{responsiblePerson}, '%')</if>
+            and del_flag = '0'
+        </where>
+        order by create_time desc
+    </select>
+
+    <select id="selectRectIssueById" parameterType="Long" resultMap="RectIssueResult">
+        <include refid="selectRectIssueVo"/>
+        where issue_id = #{issueId}
+    </select>
+
+    <insert id="insertRectIssue" parameterType="com.audit.rectification.domain.RectIssue" useGeneratedKeys="true" keyProperty="issueId">
+        insert into rect_issue (
+            <if test="issueNo != null and issueNo != ''">issue_no,</if>
+            <if test="sourceType != null and sourceType != ''">source_type,</if>
+            <if test="sourceProjectId != null">source_project_id,</if>
+            <if test="sourceDesc != null and sourceDesc != ''">source_desc,</if>
+            <if test="issueTitle != null and issueTitle != ''">issue_title,</if>
+            <if test="issueDesc != null and issueDesc != ''">issue_desc,</if>
+            <if test="issueAmount != null">issue_amount,</if>
+            <if test="legalBasis != null and legalBasis != ''">legal_basis,</if>
+            <if test="responsibleDeptId != null">responsible_dept_id,</if>
+            <if test="responsiblePerson != null and responsiblePerson != ''">responsible_person,</if>
+            <if test="issueCategory != null and issueCategory != ''">issue_category,</if>
+            <if test="riskLevel != null and riskLevel != ''">risk_level,</if>
+            <if test="deadline != null">deadline,</if>
+            <if test="status != null and status != ''">status,</if>
+            <if test="closureDate != null">closure_date,</if>
+            <if test="delFlag != null and delFlag != ''">del_flag,</if>
+            <if test="createBy != null and createBy != ''">create_by,</if>
+            <if test="remark != null and remark != ''">remark,</if>
+            create_time
+        )values(
+            <if test="issueNo != null and issueNo != ''">#{issueNo},</if>
+            <if test="sourceType != null and sourceType != ''">#{sourceType},</if>
+            <if test="sourceProjectId != null">#{sourceProjectId},</if>
+            <if test="sourceDesc != null and sourceDesc != ''">#{sourceDesc},</if>
+            <if test="issueTitle != null and issueTitle != ''">#{issueTitle},</if>
+            <if test="issueDesc != null and issueDesc != ''">#{issueDesc},</if>
+            <if test="issueAmount != null">#{issueAmount},</if>
+            <if test="legalBasis != null and legalBasis != ''">#{legalBasis},</if>
+            <if test="responsibleDeptId != null">#{responsibleDeptId},</if>
+            <if test="responsiblePerson != null and responsiblePerson != ''">#{responsiblePerson},</if>
+            <if test="issueCategory != null and issueCategory != ''">#{issueCategory},</if>
+            <if test="riskLevel != null and riskLevel != ''">#{riskLevel},</if>
+            <if test="deadline != null">#{deadline},</if>
+            <if test="status != null and status != ''">#{status},</if>
+            <if test="closureDate != null">#{closureDate},</if>
+            <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
+            <if test="createBy != null and createBy != ''">#{createBy},</if>
+            <if test="remark != null and remark != ''">#{remark},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateRectIssue" parameterType="com.audit.rectification.domain.RectIssue">
+        update rect_issue
+        <set>
+            <if test="issueNo != null and issueNo != ''">issue_no = #{issueNo},</if>
+            <if test="sourceType != null and sourceType != ''">source_type = #{sourceType},</if>
+            <if test="sourceProjectId != null">source_project_id = #{sourceProjectId},</if>
+            <if test="sourceDesc != null and sourceDesc != ''">source_desc = #{sourceDesc},</if>
+            <if test="issueTitle != null and issueTitle != ''">issue_title = #{issueTitle},</if>
+            <if test="issueDesc != null">issue_desc = #{issueDesc},</if>
+            <if test="issueAmount != null">issue_amount = #{issueAmount},</if>
+            <if test="legalBasis != null and legalBasis != ''">legal_basis = #{legalBasis},</if>
+            <if test="responsibleDeptId != null">responsible_dept_id = #{responsibleDeptId},</if>
+            <if test="responsiblePerson != null">responsible_person = #{responsiblePerson},</if>
+            <if test="issueCategory != null and issueCategory != ''">issue_category = #{issueCategory},</if>
+            <if test="riskLevel != null and riskLevel != ''">risk_level = #{riskLevel},</if>
+            <if test="deadline != null">deadline = #{deadline},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="closureDate != null">closure_date = #{closureDate},</if>
+            <if test="delFlag != null and delFlag != ''">del_flag = #{delFlag},</if>
+            <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            update_time = sysdate()
+        </set>
+        where issue_id = #{issueId}
+    </update>
+
+    <delete id="deleteRectIssueByIds" parameterType="Long">
+        update rect_issue set del_flag = '2' where issue_id in
+        <foreach item="issueId" collection="array" open="(" separator="," close=")">
+            #{issueId}
+        </foreach>
+    </delete>
+
+</mapper>

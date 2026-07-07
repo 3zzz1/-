@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.SysDataScopeConfigMapper">
+
+    <resultMap type="com.ruoyi.system.domain.SysDataScopeConfig" id="SysDataScopeConfigResult">
+        <id     property="id"          column="id"           />
+        <result property="roleId"      column="role_id"      />
+        <result property="scopeField"  column="scope_field"  />
+        <result property="scopeValue"  column="scope_value"  />
+        <result property="scopeTable"  column="scope_table"  />
+        <result property="createTime"  column="create_time"  />
+        <result property="updateTime"  column="update_time"  />
+    </resultMap>
+
+    <sql id="selectSysDataScopeConfigVo">
+        select id, role_id, scope_field, scope_value, scope_table, create_time, update_time
+        from sys_data_scope_config
+    </sql>
+
+    <select id="selectSysDataScopeConfigList" parameterType="com.ruoyi.system.domain.SysDataScopeConfig" resultMap="SysDataScopeConfigResult">
+        <include refid="selectSysDataScopeConfigVo"/>
+        <where>
+            <if test="roleId != null">and role_id = #{roleId}</if>
+            <if test="scopeTable != null and scopeTable != ''">and scope_table = #{scopeTable}</if>
+        </where>
+    </select>
+
+    <select id="selectSysDataScopeConfigByRoleId" parameterType="Long" resultMap="SysDataScopeConfigResult">
+        <include refid="selectSysDataScopeConfigVo"/> where role_id = #{roleId}
+    </select>
+
+    <insert id="insertSysDataScopeConfig" parameterType="com.ruoyi.system.domain.SysDataScopeConfig" useGeneratedKeys="true" keyProperty="id">
+        insert into sys_data_scope_config (
+            <if test="roleId != null">role_id,</if>
+            <if test="scopeField != null and scopeField != ''">scope_field,</if>
+            <if test="scopeValue != null and scopeValue != ''">scope_value,</if>
+            <if test="scopeTable != null and scopeTable != ''">scope_table,</if>
+            create_time
+        )values(
+            <if test="roleId != null">#{roleId},</if>
+            <if test="scopeField != null and scopeField != ''">#{scopeField},</if>
+            <if test="scopeValue != null and scopeValue != ''">#{scopeValue},</if>
+            <if test="scopeTable != null and scopeTable != ''">#{scopeTable},</if>
+            sysdate()
+        )
+    </insert>
+
+    <update id="updateSysDataScopeConfig" parameterType="com.ruoyi.system.domain.SysDataScopeConfig">
+        update sys_data_scope_config
+        <set>
+            <if test="scopeField != null">scope_field = #{scopeField},</if>
+            <if test="scopeValue != null">scope_value = #{scopeValue},</if>
+            <if test="scopeTable != null">scope_table = #{scopeTable},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSysDataScopeConfigById" parameterType="Long">
+        delete from sys_data_scope_config where id = #{id}
+    </delete>
+
+</mapper>
