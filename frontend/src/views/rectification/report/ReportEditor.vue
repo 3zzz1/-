@@ -5,7 +5,6 @@
         <div class="card-header">
           <span>整改报告</span>
           <div>
-            <el-button type="success" :loading="genLoading" @click="handleGenerate">自动生成报告</el-button>
             <el-button :loading="draftLoading" @click="handleSaveDraft">保存草稿</el-button>
             <el-button type="primary" :loading="submitLoading" @click="handleSubmit">提交审批</el-button>
           </div>

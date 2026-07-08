@@ -33,14 +33,8 @@
           />
         </el-form-item>
 
-        <el-form-item label="整改责任人" prop="responsiblePerson">
-          <el-input
-            v-model="form.responsiblePerson"
-            placeholder="请输入整改责任人"
-            style="width: 300px"
-            maxlength="50"
-            show-word-limit
-          />
+        <el-form-item label="整改责任人">
+          <el-input :model-value="assignedUserName" readonly placeholder="已由联络员分办时指定" style="width: 300px" />
         </el-form-item>
 
         <el-form-item label="备注说明" prop="remark">
@@ -59,14 +53,14 @@
       <div v-if="planInfo.updateTime" class="plan-meta">
         <el-divider />
         <el-descriptions :column="3" size="small">
-          <el-descriptions-item label="创建人">{{ planInfo.createBy || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="责任人">{{ assignedUserName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ planInfo.createTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最后更新">{{ planInfo.updateTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="方案状态">
-            <el-tag v-if="planInfo.status === 'draft'" type="info" size="small">草稿</el-tag>
-            <el-tag v-else-if="planInfo.status === 'submitted'" type="warning" size="small">已提交</el-tag>
-            <el-tag v-else-if="planInfo.status === 'approved'" type="success" size="small">已通过</el-tag>
-            <el-tag v-else-if="planInfo.status === 'rejected'" type="danger" size="small">已驳回</el-tag>
+            <el-tag v-if="planInfo.status === '0'" type="info" size="small">草稿</el-tag>
+            <el-tag v-else-if="planInfo.status === '1'" type="warning" size="small">已提交</el-tag>
+            <el-tag v-else-if="planInfo.status === '2'" type="success" size="small">已通过</el-tag>
+            <el-tag v-else-if="planInfo.status === '3'" type="danger" size="small">已驳回</el-tag>
             <span v-else>未提交</span>
           </el-descriptions-item>
         </el-descriptions>
@@ -78,6 +72,7 @@
 <script setup name="PlanEditor">
 import { ref, reactive, onMounted, watch, getCurrentInstance } from 'vue'
 import { getPlan, addPlan, updatePlan } from '@/api/rectification/plan'
+import request from '@/utils/request'
 const props = defineProps({
   taskId: { type: Number, required: true }
 })
@@ -87,6 +82,7 @@ const formRef = ref(null)
 const loading = ref(false)
 const submitLoading = ref(false)
 const draftLoading = ref(false)
+const assignedUserName = ref('')
 
 const form = reactive({
   taskId: props.taskId,
@@ -163,8 +159,12 @@ function loadPlan() {
       const data = response.data
       if (data) {
         form.planContent = data.planContent || data.content || ''
-        form.plannedCompletionDate = data.plannedCompletionDate || data.completionDate || undefined
+        form.plannedCompletionDate = data.planDeadline || data.plannedCompletionDate || undefined
         form.responsiblePerson = data.responsiblePerson || data.rectifyPerson || ''
+        if (data.responsibleUserId) {
+          request({ url: '/system/user/list', method: 'get', params: { userId: data.responsibleUserId } })
+            .then(res => { const u = (res.rows||[])[0]; if (u) assignedUserName.value = u.nickName || u.userName })
+        }
         form.remark = data.remark || ''
         planInfo.id = data.id || data.planId || null
         planInfo.status = data.status || ''
@@ -190,8 +190,9 @@ async function handleSaveDraft() {
       issueId: form.taskId,
       planContent: form.planContent,
       planDeadline: form.plannedCompletionDate,
-      status: '1',
-      planType: '1'
+      status: '0',
+      planType: '1',
+      remark: form.remark
     }
     const apiCall = planInfo.id ? updatePlan({ ...postData, planId: planInfo.id }) : addPlan(postData)
     apiCall
@@ -227,7 +228,8 @@ async function handleSubmit() {
           planContent: form.planContent,
           planDeadline: form.plannedCompletionDate,
           status: '1',
-          planType: '1'
+          planType: '1',
+          remark: form.remark
         }
         const apiCall = planInfo.id
           ? updatePlan({ ...postData, planId: planInfo.id })

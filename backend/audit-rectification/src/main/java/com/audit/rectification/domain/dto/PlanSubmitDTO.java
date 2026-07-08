@@ -28,6 +28,12 @@ public class PlanSubmitDTO {
     /** 长期整改原因 */
     private String longTermReason;
 
+    /** 状态: 0=草稿 1=已提交 */
+    private String status;
+
+    /** 备注 */
+    private String remark;
+
     public Long getTaskId() {
         return taskId;
     }
@@ -83,4 +89,8 @@ public class PlanSubmitDTO {
     public void setLongTermReason(String longTermReason) {
         this.longTermReason = longTermReason;
     }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getRemark() { return remark; }
+    public void setRemark(String remark) { this.remark = remark; }
 }

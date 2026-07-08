@@ -86,9 +86,9 @@
       </el-table-column>
       <el-table-column label="执行操作" align="center" width="200">
         <template #default="scope">
+          <el-button link type="primary" icon="View" @click="handleDetail(scope.row)">详情</el-button>
           <el-button link type="primary" icon="Edit" @click="handleEditPlan(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:plan:edit']">方案</el-button>
-          <el-button link type="primary" icon="Upload" @click="handleUploadMaterial(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:material:upload']">材料</el-button>
-          <el-button link type="success" icon="CircleCheck" @click="handleApplyClosure(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:closure:apply']">销号</el-button>
+          <el-button link type="success" icon="Document" @click="handleGenerateReport(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:report:generate']">报告</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -184,9 +184,10 @@
 <script setup name="MyTasks">
 import { ref, reactive, toRefs, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { listMyTask, confirmTask } from '@/api/rectification/task'
+import { listMyTask, confirmTask, getTask } from '@/api/rectification/task'
 import { applyClosure } from '@/api/rectification/closure'
 import { applyExtension } from '@/api/rectification/plan'
+import request from '@/utils/request'
 import AssignDialog from './components/AssignDialog.vue'
 
 const router = useRouter()
@@ -342,6 +343,37 @@ function submitConfirm() {
 }
 
 /** 编制方案 - 跳转任务详情页 */
+function handleDetail(row) {
+  router.push('/rectification/task-page/detail/' + row.taskId)
+}
+function handleGenerateReport(row) {
+  proxy.$modal.confirm('系统将根据方案内容和佐证材料自动生成整改报告并提交审批，确认？').then(() => {
+    getTask(row.taskId).then(res => {
+      const t = res.data || {}
+      let issueId = 0
+      try { issueId = JSON.parse((t.issueIds||'[0]').replace(/'/g,'"'))[0] } catch(e) {}
+      const planReq = request({ url: '/rectification/plan/' + row.taskId, method: 'get' })
+      const matReq = request({ url: '/rectification/material/list/' + issueId, method: 'get' })
+      Promise.all([planReq, matReq]).then(([planRes, matRes]) => {
+        const plan = planRes.data || {}
+        const mats = matRes.rows || []
+        const content = '【整改报告】\n\n一、整改方案\n' + (plan.planContent || '待填报') + '\n\n二、佐证材料\n' + (mats.map(m => m.fileName).join('、') || '无') + '\n\n三、整改成效\n已按方案完成整改措施，相关佐证材料已上传。'
+        request({ url: '/rectification/report', method: 'post', data: { taskId: row.taskId, reportContent: content, status: '1' } }).then(r => {
+          const rid = r.data?.reportId || (typeof r.data === 'number' ? r.data : 0)
+          if (rid > 0) {
+            request({ url: '/rectification/report/submit/' + rid, method: 'put' }).then(() => {
+              proxy.$modal.msgSuccess('整改报告已生成并提交审批')
+            })
+          } else {
+            proxy.$modal.msgSuccess('整改报告已生成，请手动提交审批')
+          }
+          getList()
+        })
+      })
+    })
+  }).catch(() => {})
+}
+
 function handleEditPlan(row) {
   router.push('/rectification/task-page/detail/' + row.taskId + '?tab=plan')
 }
@@ -360,6 +392,7 @@ function handleSubmitReport(row) {
 function handleApplyClosure(row) {
   currentTask.value = row
   closureForm.taskId = row.taskId
+  try { closureForm.issueId = JSON.parse((row.issueIds || '[0]').replace(/'/g,'"'))[0] } catch(e) { closureForm.issueId = 0 }
   closureForm.completionDesc = undefined
   closureForm.evidenceDesc = undefined
   if (proxy.$refs['closureFormRef']) {
@@ -372,7 +405,11 @@ function submitClosure() {
   proxy.$refs['closureFormRef'].validate(valid => {
     if (valid) {
       submitLoading.value = true
-      applyClosure(closureForm).then(() => {
+      applyClosure({
+        taskId: closureForm.taskId,
+        issueId: closureForm.issueId,
+        applyContent: (closureForm.completionDesc || '') + '\n佐证说明：' + (closureForm.evidenceDesc || '')
+      }).then(() => {
         proxy.$modal.msgSuccess('销号申请已提交')
         closureOpen.value = false
         getList()

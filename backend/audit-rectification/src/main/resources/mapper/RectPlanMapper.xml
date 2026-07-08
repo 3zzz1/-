@@ -46,6 +46,7 @@
     <select id="selectRectPlanByTaskId" parameterType="Long" resultMap="RectPlanResult">
         <include refid="selectRectPlanVo"/>
         where task_id = #{taskId} and del_flag = '0'
+        order by plan_id limit 1
     </select>
 
     <insert id="insertRectPlan" parameterType="com.audit.rectification.domain.RectPlan" useGeneratedKeys="true" keyProperty="planId">

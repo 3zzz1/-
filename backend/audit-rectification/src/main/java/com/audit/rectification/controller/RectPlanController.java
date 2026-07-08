@@ -66,6 +66,8 @@ public class RectPlanController extends BaseController {
         } catch (Exception e) {
             return error("日期格式错误");
         }
+        plan.setStatus(dto.getStatus() != null ? dto.getStatus() : "0");
+        plan.setRemark(dto.getRemark());
         return toAjax(rectPlanService.insertRectPlan(plan));
     }
 

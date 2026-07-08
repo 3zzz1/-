@@ -77,24 +77,24 @@
         </div>
       </el-tab-pane>
 
-      <!-- Tab 3: 佐证材料 -->
-      <el-tab-pane label="佐证材料" name="material">
-        <div class="tab-content">
-          <el-button type="primary" icon="Upload" @click="uploadOpen = true" style="margin-bottom:10px">上传材料</el-button>
-          <MaterialList :task-id="taskId" />
-          <MaterialUpload v-model="uploadOpen" :task-id="taskId" :issue-id="issueInfo.issueId" @uploaded="handleMaterialUploaded" />
-        </div>
-      </el-tab-pane>
-
-      <!-- Tab 4: 整改报告 -->
+      <!-- Tab 3: 整改报告（含佐证材料上传） -->
       <el-tab-pane label="整改报告" name="report">
         <div class="tab-content">
           <ReportEditor :task-id="taskId" :task-status="taskInfo.status" />
+          <el-divider />
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span style="font-weight:600">佐证材料附件：</span>
+            <el-button type="primary" icon="Upload" @click="uploadOpen = true" size="small">上传佐证</el-button>
+          </div>
+          <div v-if="materialList.length > 0" style="margin-bottom:10px">
+            <el-tag v-for="m in materialList" :key="m.materialId" closable type="info" style="margin-right:8px;margin-bottom:4px" @close="handleDeleteMaterial(m.materialId)">{{ m.fileName }}</el-tag>
+          </div>
+          <MaterialUpload v-model="uploadOpen" :task-id="taskId" :issue-id="issueInfo.issueId" @success="handleMaterialUploaded" />
           <LeaderApproval v-if="taskInfo.status >= '2'" :task-id="taskId" class="mt20" />
         </div>
       </el-tab-pane>
 
-      <!-- Tab 5: 进展时间轴 -->
+      <!-- Tab 4: 进展时间轴 -->
       <el-tab-pane label="进展时间轴" name="timeline">
         <div class="tab-content">
           <TaskTimeline :task-id="taskId" />
@@ -110,7 +110,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { getTask, confirmTask } from '@/api/rectification/task'
 import { getIssue } from '@/api/rectification/issue'
 import { getPlan } from '@/api/rectification/plan'
-import { listMaterial } from '@/api/rectification/material'
+import { listMaterial, delMaterial } from '@/api/rectification/material'
 import { getReport } from '@/api/rectification/report'
 import { getOverview } from '@/api/rectification/statistics'
 
@@ -208,11 +208,14 @@ function loadTaskInfo() {
   loading.value = true
   getTask(taskId.value).then(response => {
     taskInfo.value = response.data || {}
-    // 加载关联问题（issueIds是JSON数组如"[1,2,3]"）
     try {
       const ids = JSON.parse(taskInfo.value.issueIds || '[]')
       if (ids.length > 0) {
-        getIssue(ids[0]).then(res => { issueInfo.value = res.data || {} })
+        getIssue(ids[0]).then(res => {
+          issueInfo.value = res.data || {}
+          loadMaterials()
+          loadReport()
+        })
       }
     } catch(e) {}
     loading.value = false
@@ -228,9 +231,14 @@ function loadPlan() {
 
 /** 加载材料列表 */
 function loadMaterials() {
-  listMaterial(taskId.value).then(response => {
-    materialList.value = response.rows || []
-  }).catch(() => {})
+  const iid = issueInfo.value?.issueId || route.query.issueId
+  if (iid) {
+    listMaterial(iid).then(response => {
+      materialList.value = response.rows || []
+    }).catch(() => {})
+  } else {
+    setTimeout(loadMaterials, 500)
+  }
 }
 
 /** 加载报告数据 */
@@ -241,20 +249,32 @@ function loadReport() {
 }
 
 /** 材料上传回调 */
+function handleDeleteMaterial(mid) {
+  proxy.$modal.confirm('确认删除该材料？').then(() => {
+    delMaterial(mid).then(() => {
+      proxy.$modal.msgSuccess('已删除')
+      materialList.value = materialList.value.filter(m => m.materialId !== mid)
+    })
+  }).catch(() => {})
+}
+
 function handleMaterialUploaded() {
-  loadMaterials()
+  const iid = issueInfo.value?.issueId
+  if (iid) {
+    listMaterial(iid).then(response => {
+      materialList.value = response.rows || []
+    })
+  }
 }
 
 /** 返回列表 */
 function goBack() {
-  router.push('/rectification/task')
+  router.push('/rectification/my-tasks')
 }
 
 onMounted(() => {
   loadTaskInfo()
   loadPlan()
-  loadMaterials()
-  loadReport()
 })
 </script>
 

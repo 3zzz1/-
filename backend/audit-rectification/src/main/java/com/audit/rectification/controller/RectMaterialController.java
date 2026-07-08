@@ -20,6 +20,7 @@ import com.audit.rectification.domain.RectMaterial;
 import com.audit.rectification.service.IRectMaterialService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.core.page.TableDataInfo;
 
 /**
@@ -43,6 +44,13 @@ public class RectMaterialController extends BaseController {
     public TableDataInfo list(@PathVariable Long issueId) {
         startPage();
         List<RectMaterial> list = rectMaterialService.selectRectMaterialByIssueId(issueId);
+        // 角色过滤：整改责任人/被审单位负责人只看自己的，处长/组长看全部
+        boolean isAdmin = com.ruoyi.common.utils.SecurityUtils.isAdmin();
+        boolean isLead = com.ruoyi.common.utils.SecurityUtils.hasPermi("rectification:closure:audit");
+        if (!isAdmin && !isLead) {
+            String username = getUsername();
+            list.removeIf(m -> !username.equals(m.getCreateBy()));
+        }
         return getDataTable(list);
     }
 

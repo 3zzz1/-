@@ -1,6 +1,7 @@
 package com.audit.rectification.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +22,8 @@ public class RectPlanServiceImpl implements IRectPlanService {
 
     @Override
     public RectPlan selectRectPlanByTaskId(Long taskId) {
-        return rectPlanMapper.selectRectPlanByTaskId(taskId);
+        List<RectPlan> plans = rectPlanMapper.selectRectPlanByTaskId(taskId);
+        return (plans != null && !plans.isEmpty()) ? plans.get(0) : null;
     }
 
     @Override
@@ -47,6 +49,18 @@ public class RectPlanServiceImpl implements IRectPlanService {
     public int updateRectPlan(RectPlan plan) {
         plan.setUpdateBy(SecurityUtils.getUsername());
         plan.setUpdateTime(new Date());
-        return rectPlanMapper.updateRectPlan(plan);
+        int result = rectPlanMapper.updateRectPlan(plan);
+        if ("1".equals(plan.getStatus())) {
+            RectProgress p = new RectProgress();
+            p.setTaskId(plan.getTaskId());
+            p.setIssueId(plan.getIssueId());
+            p.setProgressType("PLAN_SUBMIT");
+            p.setContent("Update rectification plan");
+            p.setOperatorId(SecurityUtils.getUserId());
+            p.setOperatorName(SecurityUtils.getUsername());
+            p.setOperateTime(new Date());
+            rectProgressMapper.insertRectProgress(p);
+        }
+        return result;
     }
 }

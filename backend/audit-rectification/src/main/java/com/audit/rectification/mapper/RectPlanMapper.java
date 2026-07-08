@@ -33,7 +33,7 @@ public interface RectPlanMapper {
      * @param taskId 任务ID
      * @return 计划对象
      */
-    public RectPlan selectRectPlanByTaskId(Long taskId);
+    public List<RectPlan> selectRectPlanByTaskId(Long taskId);
 
     /**
      * 新增计划

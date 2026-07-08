@@ -29,16 +29,20 @@ public class RectReportServiceImpl implements IRectReportService {
     public int insertRectReport(RectReport report) {
         report.setCreateBy(SecurityUtils.getUsername());
         report.setCreateTime(new Date());
-        report.setStatus("0");
+        if (report.getStatus() == null || report.getStatus().isEmpty()) {
+            report.setStatus("0");
+        }
         int result = rectReportMapper.insertRectReport(report);
-        RectProgress p = new RectProgress();
-        p.setTaskId(report.getTaskId());
-        p.setProgressType("REPORT_SUBMIT");
-        p.setContent("Submit rectification report");
-        p.setOperatorId(SecurityUtils.getUserId());
-        p.setOperatorName(SecurityUtils.getUsername());
-        p.setOperateTime(new Date());
-        rectProgressMapper.insertRectProgress(p);
+        if ("1".equals(report.getStatus())) {
+            RectProgress p = new RectProgress();
+            p.setTaskId(report.getTaskId());
+            p.setProgressType("REPORT_SUBMIT");
+            p.setContent("Submit rectification report");
+            p.setOperatorId(SecurityUtils.getUserId());
+            p.setOperatorName(SecurityUtils.getUsername());
+            p.setOperateTime(new Date());
+            rectProgressMapper.insertRectProgress(p);
+        }
         return result;
     }
 
@@ -58,6 +62,7 @@ public class RectReportServiceImpl implements IRectReportService {
     @Override
     @Transactional
     public int submitForApproval(Long reportId) {
+        RectReport full = rectReportMapper.selectRectReportById(reportId);
         RectReport report = new RectReport();
         report.setReportId(reportId);
         report.setStatus("1");
@@ -65,7 +70,18 @@ public class RectReportServiceImpl implements IRectReportService {
         report.setSubmitTime(new Date());
         report.setUpdateBy(SecurityUtils.getUsername());
         report.setUpdateTime(new Date());
-        return rectReportMapper.updateRectReport(report);
+        int result = rectReportMapper.updateRectReport(report);
+        if (full != null) {
+            RectProgress p = new RectProgress();
+            p.setTaskId(full.getTaskId());
+            p.setProgressType("REPORT_SUBMIT");
+            p.setContent("Submit rectification report");
+            p.setOperatorId(SecurityUtils.getUserId());
+            p.setOperatorName(SecurityUtils.getUsername());
+            p.setOperateTime(new Date());
+            rectProgressMapper.insertRectProgress(p);
+        }
+        return result;
     }
 
     @Override
