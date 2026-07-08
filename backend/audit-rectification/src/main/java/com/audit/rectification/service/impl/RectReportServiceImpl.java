@@ -1,13 +1,12 @@
 package com.audit.rectification.service.impl;
 
 import java.util.Date;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.audit.rectification.domain.RectReport;
-import com.audit.rectification.domain.RectProgress;
-import com.audit.rectification.mapper.RectReportMapper;
-import com.audit.rectification.mapper.RectProgressMapper;
+import com.audit.rectification.domain.*;
+import com.audit.rectification.mapper.*;
 import com.audit.rectification.service.IRectReportService;
 import com.ruoyi.common.utils.SecurityUtils;
 
@@ -18,6 +17,12 @@ public class RectReportServiceImpl implements IRectReportService {
     private RectReportMapper rectReportMapper;
     @Autowired
     private RectProgressMapper rectProgressMapper;
+    @Autowired
+    private RectPlanMapper rectPlanMapper;
+    @Autowired
+    private RectTaskMapper rectTaskMapper;
+    @Autowired
+    private RectMaterialMapper rectMaterialMapper;
 
     @Override
     public RectReport selectRectReportByTaskId(Long taskId) {
@@ -32,18 +37,7 @@ public class RectReportServiceImpl implements IRectReportService {
         if (report.getStatus() == null || report.getStatus().isEmpty()) {
             report.setStatus("0");
         }
-        int result = rectReportMapper.insertRectReport(report);
-        if ("1".equals(report.getStatus())) {
-            RectProgress p = new RectProgress();
-            p.setTaskId(report.getTaskId());
-            p.setProgressType("REPORT_SUBMIT");
-            p.setContent("Submit rectification report");
-            p.setOperatorId(SecurityUtils.getUserId());
-            p.setOperatorName(SecurityUtils.getUsername());
-            p.setOperateTime(new Date());
-            rectProgressMapper.insertRectProgress(p);
-        }
-        return result;
+        return rectReportMapper.insertRectReport(report);
     }
 
     @Override
@@ -56,7 +50,32 @@ public class RectReportServiceImpl implements IRectReportService {
 
     @Override
     public String generateReport(Long taskId) {
-        return "Report content will be generated via Apache POI";
+        StringBuilder sb = new StringBuilder();
+        sb.append("【整改报告】\n\n一、整改方案\n");
+        List<RectPlan> plans = rectPlanMapper.selectRectPlanByTaskId(taskId);
+        if (plans != null && !plans.isEmpty()) {
+            sb.append(plans.get(0).getPlanContent() != null ? plans.get(0).getPlanContent() : "待填报");
+        } else {
+            sb.append("待填报");
+        }
+        sb.append("\n\n二、佐证材料\n");
+        // get issue id from task
+        RectTask task = rectTaskMapper.selectRectTaskById(taskId);
+        if (task != null && task.getIssueIds() != null) {
+            String ids = task.getIssueIds().replace("[","").replace("]","");
+            String[] arr = ids.split(",");
+            if (arr.length > 0) {
+                try {
+                    Long iid = Long.parseLong(arr[0].trim());
+                    List<RectMaterial> mats = rectMaterialMapper.selectRectMaterialByIssueId(iid);
+                    if (mats != null && !mats.isEmpty()) {
+                        for (RectMaterial m : mats) sb.append(m.getFileName()).append(" ");
+                    } else { sb.append("无"); }
+                } catch (Exception e) { sb.append("无"); }
+            }
+        }
+        sb.append("\n\n三、整改成效\n已按方案完成整改措施，相关佐证材料已上传。");
+        return sb.toString();
     }
 
     @Override

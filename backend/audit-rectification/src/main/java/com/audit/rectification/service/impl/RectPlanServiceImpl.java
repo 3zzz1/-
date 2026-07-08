@@ -32,15 +32,17 @@ public class RectPlanServiceImpl implements IRectPlanService {
         plan.setCreateBy(SecurityUtils.getUsername());
         plan.setCreateTime(new Date());
         int result = rectPlanMapper.insertRectPlan(plan);
-        RectProgress p = new RectProgress();
-        p.setTaskId(plan.getTaskId());
-        p.setIssueId(plan.getIssueId());
-        p.setProgressType("PLAN_SUBMIT");
-        p.setContent("提交整改方案" + ("2".equals(plan.getPlanType()) ? "(长期持续整改)" : ""));
-        p.setOperatorId(SecurityUtils.getUserId());
-        p.setOperatorName(SecurityUtils.getUsername());
-        p.setOperateTime(new Date());
-        rectProgressMapper.insertRectProgress(p);
+        if ("1".equals(plan.getStatus())) {
+            RectProgress p = new RectProgress();
+            p.setTaskId(plan.getTaskId());
+            p.setIssueId(plan.getIssueId());
+            p.setProgressType("PLAN_SUBMIT");
+            p.setContent("Submit rectification plan");
+            p.setOperatorId(SecurityUtils.getUserId());
+            p.setOperatorName(SecurityUtils.getUsername());
+            p.setOperateTime(new Date());
+            rectProgressMapper.insertRectProgress(p);
+        }
         return result;
     }
 

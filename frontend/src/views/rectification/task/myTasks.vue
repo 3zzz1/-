@@ -88,7 +88,7 @@
         <template #default="scope">
           <el-button link type="primary" icon="View" @click="handleDetail(scope.row)">详情</el-button>
           <el-button link type="primary" icon="Edit" @click="handleEditPlan(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:plan:edit']">方案</el-button>
-          <el-button link type="success" icon="Document" @click="handleGenerateReport(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:report:generate']">报告</el-button>
+          <el-button link type="danger" icon="CircleCheck" @click="handleApplyClosure(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:closure:apply']">销号</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -358,15 +358,8 @@ function handleGenerateReport(row) {
         const plan = planRes.data || {}
         const mats = matRes.rows || []
         const content = '【整改报告】\n\n一、整改方案\n' + (plan.planContent || '待填报') + '\n\n二、佐证材料\n' + (mats.map(m => m.fileName).join('、') || '无') + '\n\n三、整改成效\n已按方案完成整改措施，相关佐证材料已上传。'
-        request({ url: '/rectification/report', method: 'post', data: { taskId: row.taskId, reportContent: content, status: '1' } }).then(r => {
-          const rid = r.data?.reportId || (typeof r.data === 'number' ? r.data : 0)
-          if (rid > 0) {
-            request({ url: '/rectification/report/submit/' + rid, method: 'put' }).then(() => {
-              proxy.$modal.msgSuccess('整改报告已生成并提交审批')
-            })
-          } else {
-            proxy.$modal.msgSuccess('整改报告已生成，请手动提交审批')
-          }
+        request({ url: '/rectification/report', method: 'post', data: { taskId: row.taskId, reportContent: content } }).then(() => {
+          proxy.$modal.msgSuccess('整改报告已生成，请前往任务详情审阅后提交审批')
           getList()
         })
       })
