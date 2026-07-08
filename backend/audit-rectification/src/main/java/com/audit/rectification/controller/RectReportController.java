@@ -52,6 +52,31 @@ public class RectReportController extends BaseController {
      * 生成整改报告
      */
     @PreAuthorize("@ss.hasPermi('rectification:report:generate')")
+    @GetMapping("/word/{taskId}")
+    public void downloadReport(@PathVariable Long taskId, jakarta.servlet.http.HttpServletResponse response) {
+        try {
+            String content = rectReportService.generateReport(taskId);
+            response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+            response.setHeader("Content-Disposition", "attachment; filename=report_" + taskId + ".docx");
+            org.apache.poi.xwpf.usermodel.XWPFDocument doc = new org.apache.poi.xwpf.usermodel.XWPFDocument();
+            org.apache.poi.xwpf.usermodel.XWPFParagraph p;
+            org.apache.poi.xwpf.usermodel.XWPFRun r;
+            p = doc.createParagraph(); p.setAlignment(org.apache.poi.xwpf.usermodel.ParagraphAlignment.CENTER);
+            r = p.createRun(); r.setBold(true); r.setFontSize(18); r.setText("整改报告");
+            for (String line : content.split("\n")) {
+                if (line.startsWith("一、") || line.startsWith("二、") || line.startsWith("三、") || line.startsWith("四、")) {
+                    p = doc.createParagraph();
+                    r = p.createRun(); r.setBold(true); r.setFontSize(14); r.setText(line);
+                } else if (line.trim().length() > 0) {
+                    p = doc.createParagraph();
+                    r = p.createRun(); r.setFontSize(12); r.setText(line.trim());
+                }
+            }
+            doc.write(response.getOutputStream()); doc.close();
+        } catch (Exception e) { throw new RuntimeException("Download failed", e); }
+    }
+
+    @PreAuthorize("@ss.hasPermi('rectification:report:generate')")
     @PostMapping("/generate/{taskId}")
     public AjaxResult generate(@PathVariable Long taskId) {
         return success(rectReportService.generateReport(taskId));

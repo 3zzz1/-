@@ -64,16 +64,16 @@ function handleGenerate() {
 function handleSubmit() {
   proxy.$modal.confirm('确认提交整改报告？').then(() => {
     submitLoading.value = true
-    if (!reportInfo.value.reportId) {
-      addReport({ taskId: props.taskId, reportContent: reportContent.value }).then(res => {
-        const id = res.data?.reportId
-        if (id) return submitReport(id)
-      }).then(() => { proxy.$modal.msgSuccess('提交成功'); loadReport() }).finally(() => { submitLoading.value = false })
-    } else {
-      submitReport(reportInfo.value.reportId).then(() => {
-        proxy.$modal.msgSuccess('提交成功'); loadReport()
-      }).finally(() => { submitLoading.value = false })
-    }
+    // always save first, then submit
+    addReport({ taskId: props.taskId, reportContent: reportContent.value }).then(() => {
+      return getReport(props.taskId)
+    }).then(res => {
+      const rid = (res.data || {}).reportId
+      if (rid) return submitReport(rid)
+    }).then(() => {
+      proxy.$modal.msgSuccess('已提交审批')
+      reportInfo.value.status = '1'
+    }).finally(() => { submitLoading.value = false })
   }).catch(() => {})
 }
 

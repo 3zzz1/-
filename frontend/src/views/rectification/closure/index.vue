@@ -27,9 +27,9 @@
           clearable
           style="width: 160px"
         >
-          <el-option label="待审核" value="pending" />
-          <el-option label="已销号" value="approved" />
-          <el-option label="已驳回" value="rejected" />
+          <el-option label="待审核" value="0" />
+          <el-option label="已销号" value="1" />
+          <el-option label="已驳回" value="2" />
         </el-select>
       </el-form-item>
       <el-form-item label="申请时间">
@@ -105,7 +105,7 @@
       <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button
-            v-if="scope.row.status === 'pending'"
+            v-if="scope.row.status === '0'"
             link
             type="primary"
             icon="Check"
@@ -145,8 +145,8 @@
           {{ viewData.issueTitle || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="申请内容" label-align="right">
-          <div style="white-space: pre-wrap; line-height: 1.6">
-            {{ viewData.description || viewData.applyContent || '-' }}
+          <div style="white-space: pre-wrap; line-height: 1.6; max-height: 200px; overflow-y: auto; background: #f5f7fa; padding: 8px; border-radius: 4px">
+            {{ viewData.description || viewData.applyContent || viewData.content || '-' }}
           </div>
         </el-descriptions-item>
         <el-descriptions-item label="申请人" label-align="right">
@@ -161,19 +161,19 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="审核人" label-align="right">
-          {{ viewData.auditor || viewData.auditBy || '-' }}
+          {{ viewData.auditUserId || viewData.auditor || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="审核时间" label-align="right">
           {{ viewData.auditTime || viewData.updateTime || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="审核意见" label-align="right" v-if="viewData.opinion">
           <div style="white-space: pre-wrap; line-height: 1.6">
-            {{ viewData.opinion }}
+            {{ viewData.auditOpinion || viewData.opinion || '-' }}
           </div>
         </el-descriptions-item>
         <el-descriptions-item label="补充整改要求" label-align="right" v-if="viewData.reworkRequirement">
           <div style="white-space: pre-wrap; line-height: 1.6; color: #F56C6C">
-            {{ viewData.reworkRequirement }}
+            {{ viewData.reRectRequired || viewData.reworkRequirement || '-' }}
           </div>
         </el-descriptions-item>
       </el-descriptions>
@@ -181,7 +181,7 @@
         <div class="dialog-footer">
           <el-button @click="viewOpen = false">关 闭</el-button>
           <el-button
-            v-if="viewData.status === 'pending'"
+            v-if="viewData.status === '0'"
             type="primary"
             @click="viewOpen = false; handleAudit(viewData)"
             v-hasPermi="['rectification:closure:audit']"
@@ -201,6 +201,7 @@
 
 <script setup name="Closure">
 import { ref, reactive, toRefs } from 'vue'
+import request from '@/utils/request'
 import { listClosure, getClosure } from '@/api/rectification/closure'
 import ClosureApply from './components/ClosureApply.vue'
 import ClosureAudit from './components/ClosureAudit.vue'
@@ -240,13 +241,17 @@ const { queryParams } = toRefs(data)
 
 /** Status helpers */
 function getStatusTagType(status) {
-  const map = { pending: 'warning', approved: 'success', rejected: 'danger' }
+  const map = { '0': 'warning', '1': 'success', '2': 'danger' }
   return map[status] || 'info'
 }
 
 function getStatusLabel(status) {
-  const map = { pending: '待审核', approved: '已销号', rejected: '已驳回' }
+  const map = { '0': '待审核', '1': '已销号', '2': '已驳回' }
   return map[status] || status || '-'
+}
+function getStatusType(status) {
+  const map = { '0': 'warning', '1': 'success', '2': 'danger' }
+  return map[status] || 'info'
 }
 
 /** Query list */
@@ -258,12 +263,19 @@ function getList() {
     params.endTime = dateRange.value[1]
   }
   listClosure(params).then(res => {
-    closureList.value = res.rows || res.data || []
+    const list = res.rows || res.data || []
     total.value = res.total || 0
-    loading.value = false
-  }).catch(() => {
-    loading.value = false
-  })
+    if (list.length === 0) { closureList.value = []; loading.value = false; return }
+    let loaded = 0
+    list.forEach((item) => {
+      request({ url: '/rectification/issue/' + item.issueId, method: 'get' }).then(r => {
+        item.issueTitle = (r.data || {}).issueTitle || ''
+      }).catch(() => {}).finally(() => {
+        loaded++; if (loaded >= list.length) { closureList.value = [...list]; loading.value = false }
+      })
+    })
+    closureList.value = [...list]
+  }).catch(() => { loading.value = false })
 }
 
 function handleQuery() {

@@ -220,19 +220,18 @@ async function handleUpload() {
       )
       .then(() => {
         uploadLoading.value = true
-        const formData = new FormData()
-        formData.append('issueId', props.issueId)
-        formData.append('taskId', props.taskId)
-        formData.append('materialType', form.materialType)
-
-        pendingFiles.value.forEach((fileWrapper) => {
-          formData.append('file', fileWrapper.raw)
+        const promises = pendingFiles.value.map(fileWrapper => {
+          const fd = new FormData()
+          fd.append('issueId', props.issueId)
+          fd.append('taskId', props.taskId)
+          fd.append('materialType', form.materialType)
+          fd.append('file', fileWrapper.raw)
+          return uploadMaterial(fd)
         })
-
-        return uploadMaterial(formData)
+        return Promise.all(promises)
       })
-      .then((res) => {
-        proxy.$modal.msgSuccess('材料上传成功')
+      .then((results) => {
+        proxy.$modal.msgSuccess(`成功上传 ${results.length} 个文件`)
         emit('success')
         handleClose()
       })

@@ -90,7 +90,8 @@
             <el-tag v-for="m in materialList" :key="m.materialId" closable type="info" style="margin-right:8px;margin-bottom:4px" @close="handleDeleteMaterial(m.materialId)">{{ m.fileName }}</el-tag>
           </div>
           <MaterialUpload v-model="uploadOpen" :task-id="taskId" :issue-id="issueInfo.issueId" @success="handleMaterialUploaded" />
-          <LeaderApproval v-if="taskInfo.status >= '2'" :task-id="taskId" class="mt20" />
+          <el-button type="warning" icon="Checked" @click="approvalOpen = true" v-if="reportData.reportId && reportData.status === '1'" v-hasPermi="['rectification:report:approve']">审批报告</el-button>
+          <LeaderApproval v-model="approvalOpen" :report-id="(reportData || {}).reportId" :content="reportData.reportContent || ''" @success="loadReport" />
         </div>
       </el-tab-pane>
 
@@ -130,6 +131,7 @@ const { proxy } = getCurrentInstance()
 const taskId = ref(route.params.taskId)
 const activeTab = ref(route.query.tab || 'basic')
 const uploadOpen = ref(false)
+const approvalOpen = ref(false)
 
 const taskInfo = ref({})
 const issueInfo = ref({})

@@ -19,15 +19,20 @@
     </div>
 
     <el-divider />
+    <div class="approval-section" v-if="materials.length > 0">
+      <h4 class="section-title">佐证材料</h4>
+      <el-tag v-for="m in materials" :key="m.materialId" type="info" style="margin-right:8px;margin-bottom:4px">{{ m.fileName }}</el-tag>
+    </div>
+    <el-divider />
 
     <!-- Approval form -->
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="审批结果" prop="result">
         <el-radio-group v-model="form.result" size="default">
-          <el-radio value="approved">
+          <el-radio label="approved">
             <span style="color: #67c23a; font-weight: 500">通过</span>
           </el-radio>
-          <el-radio value="rejected">
+          <el-radio label="rejected">
             <span style="color: #f56c6c; font-weight: 500">驳回</span>
           </el-radio>
         </el-radio-group>
@@ -78,7 +83,7 @@
 
 <script setup name="LeaderApproval">
 import { ref, reactive, computed, watch, getCurrentInstance } from 'vue'
-import { getReport, leaderApprove } from '@/api/rectification/report'
+import { leaderApprove } from '@/api/rectification/report'
 
 const props = defineProps({
   modelValue: {
@@ -88,6 +93,14 @@ const props = defineProps({
   reportId: {
     type: Number,
     required: true
+  },
+  content: {
+    type: String,
+    default: ''
+  },
+  materials: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -118,7 +131,7 @@ const rules = reactive({
   opinion: [{ required: true, message: '请输入审批意见', trigger: 'blur' }],
   rejectReason: [
     { required: true, message: '请输入驳回原因', trigger: 'blur' },
-    { min: 10, message: '驳回原因不能少于10个字', trigger: 'blur' }
+    { min: 2, message: '驳回原因太短', trigger: 'blur' }
   ]
 })
 
@@ -156,20 +169,7 @@ watch(
 )
 
 function loadReportContent() {
-  loading.value = true
-  getReport(props.reportId)
-    .then((response) => {
-      const data = response.data
-      if (data) {
-        reportContent.value = data.reportContent || data.content || ''
-      }
-    })
-    .catch(() => {
-      reportContent.value = ''
-    })
-    .finally(() => {
-      loading.value = false
-    })
+  reportContent.value = props.content || ''
 }
 
 async function handleSubmit() {
@@ -194,9 +194,8 @@ async function handleSubmit() {
         submitLoading.value = true
         const postData = {
           reportId: form.reportId,
-          approved: isApproved,
-          leaderOpinion: form.opinion,
-          rejectReason: isApproved ? null : form.rejectReason
+          approveResult: isApproved ? '1' : '2',
+          approveOpinion: isApproved ? form.opinion : (form.rejectReason || form.opinion)
         }
         return leaderApprove(postData)
       })
@@ -250,7 +249,7 @@ function handleClose() {
     font-size: 14px;
     line-height: 1.8;
     color: #303133;
-    white-space: normal;
+    white-space: pre-wrap;
 
     :deep(p) {
       margin-bottom: 8px;

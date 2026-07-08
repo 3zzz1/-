@@ -7,7 +7,7 @@ export function listMaterial(issueId) {
 
 // 上传材料
 export function uploadMaterial(data) {
-  return request({ url: '/rectification/material/upload', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data' } })
+  return request({ url: '/rectification/material/upload', method: 'post', data: data, headers: { 'Content-Type': 'multipart/form-data', repeatSubmit: false } })
 }
 
 // 删除材料
