@@ -18,15 +18,11 @@ import com.audit.rectification.domain.RectIssue;
 import com.audit.rectification.service.IRectIssueService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.entity.SysDept;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.utils.poi.ExcelUtil;
+import com.ruoyi.system.service.ISysDeptService;
 
-/**
- * 审计整改问题Controller
- *
- * @author audit
- * @date 2026-07-06
- */
 @RestController
 @RequestMapping("/rectification/issue")
 public class RectIssueController extends BaseController {
@@ -34,9 +30,14 @@ public class RectIssueController extends BaseController {
     @Autowired
     private IRectIssueService rectIssueService;
 
-    /**
-     * 查询整改问题列表
-     */
+    @Autowired
+    private ISysDeptService deptService;
+
+    @GetMapping("/depts")
+    public AjaxResult depts() {
+        return success(deptService.selectDeptList(new SysDept()));
+    }
+
     @PreAuthorize("@ss.hasPermi('rectification:issue:list')")
     @GetMapping("/list")
     public TableDataInfo list(RectIssue issue) {
@@ -45,45 +46,30 @@ public class RectIssueController extends BaseController {
         return getDataTable(list);
     }
 
-    /**
-     * 获取整改问题详细信息
-     */
     @PreAuthorize("@ss.hasPermi('rectification:issue:query')")
     @GetMapping(value = "/{issueId}")
     public AjaxResult getInfo(@PathVariable Long issueId) {
         return success(rectIssueService.selectRectIssueById(issueId));
     }
 
-    /**
-     * 新增整改问题
-     */
     @PreAuthorize("@ss.hasPermi('rectification:issue:add')")
     @PostMapping
     public AjaxResult add(@RequestBody RectIssue issue) {
         return toAjax(rectIssueService.insertRectIssue(issue));
     }
 
-    /**
-     * 修改整改问题
-     */
     @PreAuthorize("@ss.hasPermi('rectification:issue:edit')")
     @PutMapping
     public AjaxResult edit(@RequestBody RectIssue issue) {
         return toAjax(rectIssueService.updateRectIssue(issue));
     }
 
-    /**
-     * 删除整改问题
-     */
     @PreAuthorize("@ss.hasPermi('rectification:issue:remove')")
     @DeleteMapping("/{issueIds}")
     public AjaxResult remove(@PathVariable Long[] issueIds) {
         return toAjax(rectIssueService.deleteRectIssueByIds(issueIds));
     }
 
-    /**
-     * 从项目同步问题
-     */
     @PreAuthorize("@ss.hasPermi('rectification:issue:sync')")
     @PostMapping("/sync/{projectId}")
     public AjaxResult sync(@PathVariable Long projectId) {
@@ -94,7 +80,6 @@ public class RectIssueController extends BaseController {
     @PostMapping("/export")
     public void export(HttpServletResponse response) {
         List<RectIssue> list = rectIssueService.selectRectIssueList(new RectIssue());
-        System.out.println("====== 导出数据量 ======: " + (list != null ? list.size() : 0));
         ExcelUtil<RectIssue> util = new ExcelUtil<>(RectIssue.class);
         util.exportExcel(response, list, "问题台账");
     }

@@ -55,15 +55,6 @@
     <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="任务编号" align="center" prop="taskNo" width="140" />
-      <el-table-column label="关联问题" align="center" prop="issueTitle" :show-overflow-tooltip="true" min-width="180" />
-      <el-table-column label="问题分类" align="center" prop="issueCategory" width="90" />
-      <el-table-column label="来源类型" align="center" prop="sourceType" width="100">
-        <template #default="scope">
-          <el-tag :type="sourceTypeTag(scope.row.sourceType)" size="small">
-            {{ sourceTypeLabel(scope.row.sourceType) }}
-          </el-tag>
-        </template>
-      </el-table-column>
       <el-table-column label="联系人" align="center" prop="contactPerson" width="90" />
       <el-table-column label="截止日期" align="center" prop="deadline" width="110">
         <template #default="scope">
@@ -82,56 +73,22 @@
         </template>
       </el-table-column>
       <el-table-column label="下发时间" align="center" prop="dispatchTime" width="160" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="280">
+      <el-table-column label="确认" align="center" width="100">
         <template #default="scope">
-          <el-button
-            link
-            type="primary"
-            icon="Check"
-            @click="handleConfirm(scope.row)"
-            v-if="scope.row.status === '0'"
-            v-hasPermi="['rectification:task:confirm']"
-          >确认接收</el-button>
-          <el-button
-            link
-            type="primary"
-            icon="Edit"
-            @click="handleEditPlan(scope.row)"
-            v-if="['0', '1'].includes(scope.row.status)"
-            v-hasPermi="['rectification:plan:edit']"
-          >编制方案</el-button>
-          <el-button
-            link
-            type="primary"
-            icon="Upload"
-            @click="handleUploadMaterial(scope.row)"
-            v-if="['1'].includes(scope.row.status)"
-            v-hasPermi="['rectification:material:upload']"
-          >上传材料</el-button>
-          <el-button
-            link
-            type="primary"
-            icon="Document"
-            @click="handleSubmitReport(scope.row)"
-            v-if="['1'].includes(scope.row.status)"
-            v-hasPermi="['rectification:report:submit']"
-          >提交报告</el-button>
-          <el-button
-            link
-            type="success"
-            icon="CircleCheck"
-            @click="handleApplyClosure(scope.row)"
-            v-if="['1', '2'].includes(scope.row.status)"
-            v-hasPermi="['rectification:closure:apply']"
-          >申请销号</el-button>
-          <el-button
-            link
-            type="warning"
-            icon="Timer"
-            @click="handleApplyExtension(scope.row)"
-            v-if="['1'].includes(scope.row.status)"
-            v-hasPermi="['rectification:plan:extension']"
-          >申请延期</el-button>
+          <el-button link type="primary" icon="Check" @click="handleConfirm(scope.row)" v-if="scope.row.status === '0'" v-hasPermi="['rectification:task:confirm']">确认接收</el-button>
+          <el-tag type="success" v-else-if="scope.row.status !== '0'">已确认</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="分办" align="center" width="120">
+        <template #default="scope">
+          <el-button link type="primary" icon="User" @click="handleAssign(scope.row)" v-if="scope.row.status === '1'" v-hasPermi="['rectification:task:assign']">分办责任人</el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="执行操作" align="center" width="200">
+        <template #default="scope">
+          <el-button link type="primary" icon="Edit" @click="handleEditPlan(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:plan:edit']">方案</el-button>
+          <el-button link type="primary" icon="Upload" @click="handleUploadMaterial(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:material:upload']">材料</el-button>
+          <el-button link type="success" icon="CircleCheck" @click="handleApplyClosure(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:closure:apply']">销号</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -218,6 +175,9 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 分办责任人 Dialog -->
+    <AssignDialog v-model="assignOpen" :task-id="assignTaskId" @success="onAssignSuccess" />
   </div>
 </template>
 
@@ -227,6 +187,7 @@ import { useRouter } from 'vue-router'
 import { listMyTask, confirmTask } from '@/api/rectification/task'
 import { applyClosure } from '@/api/rectification/closure'
 import { applyExtension } from '@/api/rectification/plan'
+import AssignDialog from './components/AssignDialog.vue'
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
@@ -358,6 +319,11 @@ function handleSelectionChange(selection) {
 }
 
 /** 确认接收 */
+const assignTaskId = ref(null)
+const assignOpen = ref(false)
+function handleAssign(row) { assignTaskId.value = row.taskId; assignOpen.value = true }
+function onAssignSuccess() { assignOpen.value = false; getList() }
+
 function handleConfirm(row) {
   currentTask.value = row
   confirmOpen.value = true
@@ -366,6 +332,7 @@ function handleConfirm(row) {
 function submitConfirm() {
   submitLoading.value = true
   confirmTask(currentTask.value.taskId).then(() => {
+    currentTask.value.status = '1'
     proxy.$modal.msgSuccess('任务已确认接收')
     confirmOpen.value = false
     getList()
@@ -376,17 +343,17 @@ function submitConfirm() {
 
 /** 编制方案 - 跳转任务详情页 */
 function handleEditPlan(row) {
-  router.push('/rectification/task/detail/' + row.taskId + '?tab=plan')
+  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=plan')
 }
 
 /** 上传材料 - 跳转任务详情页 */
 function handleUploadMaterial(row) {
-  router.push('/rectification/task/detail/' + row.taskId + '?tab=material')
+  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=material')
 }
 
 /** 提交报告 - 跳转任务详情页 */
 function handleSubmitReport(row) {
-  router.push('/rectification/task/detail/' + row.taskId + '?tab=report')
+  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=report')
 }
 
 /** 申请销号 */

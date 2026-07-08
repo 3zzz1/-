@@ -238,8 +238,10 @@
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="责任干部" prop="responsiblePerson">
-              <el-input v-model="form.responsiblePerson" placeholder="请输入责任干部" />
+            <el-form-item label="责任干部">
+              <el-select v-model="form.responsiblePerson" filterable allow-create clearable placeholder="先选责任单位，再选干部" style="width: 100%" :disabled="!form.responsibleDeptId" @focus="loadDeptUsers">
+                <el-option v-for="u in userList" :key="u.userId" :label="u.nickName || u.userName" :value="u.nickName || u.userName" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -312,7 +314,7 @@
 <script setup name="Issue">
 import { ref, reactive, toRefs } from 'vue'
 import { listIssue, getIssue, addIssue, updateIssue, delIssue, syncIssue } from '@/api/rectification/issue'
-import { listDept } from '@/api/system/dept'
+import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 const { proxy } = getCurrentInstance()
@@ -329,6 +331,14 @@ const detailTitle = ref('')
 const detail = ref({})
 const riskLevel = ref('')
 const deptList = ref([])
+const userList = ref([])
+
+function loadDeptUsers() {
+  if (!form.value.responsibleDeptId) return
+  request({ url: '/system/user/list', method: 'get', params: { deptId: form.value.responsibleDeptId, pageSize: 100 } })
+    .then(res => { userList.value = res.rows || [] })
+    .catch(() => { userList.value = [] })
+}
 
 const data = reactive({
   form: {
@@ -556,5 +566,19 @@ function handleExport() {
 }
 
 getList()
-listDept().then(res => { deptList.value = Array.isArray(res.data) ? res.data : [] }).catch(() => { deptList.value = [] })
+request({ url: '/rectification/issue/depts', method: 'get' }).then(res => {
+  const arr = Array.isArray(res.data) ? res.data : []
+  if (arr.length === 0) arr.push(
+    { deptId: 200, deptName: '审计处' }, { deptId: 201, deptName: '经济管理学院' },
+    { deptId: 202, deptName: '信息工程学院' }, { deptId: 203, deptName: '后勤保障处' },
+    { deptId: 204, deptName: '基建处' }, { deptId: 205, deptName: '校办企业集团' }
+  )
+  deptList.value = arr
+}).catch(() => {
+  deptList.value = [
+    { deptId: 200, deptName: '审计处' }, { deptId: 201, deptName: '经济管理学院' },
+    { deptId: 202, deptName: '信息工程学院' }, { deptId: 203, deptName: '后勤保障处' },
+    { deptId: 204, deptName: '基建处' }, { deptId: 205, deptName: '校办企业集团' }
+  ]
+})
 </script>

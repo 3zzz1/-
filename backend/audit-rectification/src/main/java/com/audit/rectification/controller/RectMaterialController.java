@@ -1,6 +1,9 @@
 package com.audit.rectification.controller;
 
+import java.io.File;
+import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -18,7 +21,6 @@ import com.audit.rectification.service.IRectMaterialService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
-import com.ruoyi.common.utils.file.FileUtils;
 
 /**
  * 审计整改材料Controller
@@ -50,7 +52,23 @@ public class RectMaterialController extends BaseController {
     @PreAuthorize("@ss.hasPermi('rectification:material:upload')")
     @PostMapping("/upload")
     public AjaxResult upload(@RequestParam("file") MultipartFile file, RectMaterial material) {
-        return toAjax(rectMaterialService.insertRectMaterial(material));
+        try {
+            String dir = System.getProperty("user.dir") + File.separator + "upload" + File.separator + "material";
+            File dirFile = new File(dir);
+            if (!dirFile.exists()) dirFile.mkdirs();
+            String originalName = file.getOriginalFilename();
+            String ext = originalName != null && originalName.contains(".") ? originalName.substring(originalName.lastIndexOf(".")) : "";
+            String savedName = UUID.randomUUID().toString().replace("-", "") + ext;
+            File dest = new File(dir, savedName);
+            file.transferTo(dest);
+            material.setFileName(originalName);
+            material.setFilePath(dir + File.separator + savedName);
+            material.setFileSize(file.getSize());
+            material.setFileExt(ext);
+            return toAjax(rectMaterialService.insertRectMaterial(material));
+        } catch (Exception e) {
+            return error("上传失败: " + e.getMessage());
+        }
     }
 
     /**

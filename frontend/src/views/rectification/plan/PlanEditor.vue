@@ -14,15 +14,11 @@
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" size="default">
         <el-form-item label="方案内容" prop="planContent">
           <div class="editor-wrapper">
-            <QuillEditor
-              ref="quillRef"
-              v-model:content="form.planContent"
-              contentType="html"
-              theme="snow"
-              :toolbar="toolbarOptions"
-              :modules="editorModules"
+            <el-input
+              v-model="form.planContent"
+              type="textarea"
+              :rows="15"
               placeholder="请输入整改方案详细内容，包括整改措施、责任人、时间节点等..."
-              style="height: 420px"
             />
           </div>
         </el-form-item>
@@ -82,19 +78,12 @@
 <script setup name="PlanEditor">
 import { ref, reactive, onMounted, watch, getCurrentInstance } from 'vue'
 import { getPlan, addPlan, updatePlan } from '@/api/rectification/plan'
-import { QuillEditor } from '@vueup/vue-quill'
-import '@vueup/vue-quill/dist/vue-quill.snow.css'
-
 const props = defineProps({
-  taskId: {
-    type: Number,
-    required: true
-  }
+  taskId: { type: Number, required: true }
 })
 
 const { proxy } = getCurrentInstance()
 const formRef = ref(null)
-const quillRef = ref(null)
 const loading = ref(false)
 const submitLoading = ref(false)
 const draftLoading = ref(false)
@@ -198,13 +187,13 @@ async function handleSaveDraft() {
     draftLoading.value = true
     const postData = {
       taskId: form.taskId,
+      issueId: form.taskId,
       planContent: form.planContent,
-      plannedCompletionDate: form.plannedCompletionDate,
-      responsiblePerson: form.responsiblePerson,
-      remark: form.remark,
-      status: 'draft'
+      planDeadline: form.plannedCompletionDate,
+      status: '1',
+      planType: '1'
     }
-    const apiCall = planInfo.id ? updatePlan({ ...postData, id: planInfo.id }) : addPlan(postData)
+    const apiCall = planInfo.id ? updatePlan({ ...postData, planId: planInfo.id }) : addPlan(postData)
     apiCall
       .then(() => {
         proxy.$modal.msgSuccess('方案草稿已保存')
@@ -234,14 +223,14 @@ async function handleSubmit() {
         submitLoading.value = true
         const postData = {
           taskId: form.taskId,
+          issueId: form.taskId,
           planContent: form.planContent,
-          plannedCompletionDate: form.plannedCompletionDate,
-          responsiblePerson: form.responsiblePerson,
-          remark: form.remark,
-          status: 'submitted'
+          planDeadline: form.plannedCompletionDate,
+          status: '1',
+          planType: '1'
         }
         const apiCall = planInfo.id
-          ? updatePlan({ ...postData, id: planInfo.id })
+          ? updatePlan({ ...postData, planId: planInfo.id })
           : addPlan(postData)
         return apiCall
       })

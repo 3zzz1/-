@@ -144,59 +144,21 @@ export const dynamicRoutes = [
       }
     ]
   },
-  // ===== 审计整改管理模块路由 =====
+  // ===== 整改任务详情（隐藏路由，需父级permissions才能被filterDynamicRoutes加载）=====
   {
-    path: '/rectification',
-    component: Layout,
-    name: 'Rectification',
-    meta: { title: '审计整改管理', icon: 'documentation' },
-    redirect: '/rectification/issue',
-    children: [
-      {
-        path: 'issue',
-        name: 'RectIssue',
-        component: () => import('@/views/rectification/issue/index.vue'),
-        meta: { title: '问题台账', icon: 'list', permissions: ['rectification:issue:list'] }
-      },
-      {
-        path: 'task',
-        name: 'RectTask',
-        component: () => import('@/views/rectification/task/index.vue'),
-        meta: { title: '整改任务', icon: 'task', permissions: ['rectification:task:list'] }
-      },
-      {
-        path: 'my-tasks',
-        name: 'RectMyTasks',
-        component: () => import('@/views/rectification/task/myTasks.vue'),
-        meta: { title: '我的整改任务', icon: 'task', permissions: ['rectification:task:myList'] }
-      },
-      {
-        path: 'closure',
-        name: 'RectClosure',
-        component: () => import('@/views/rectification/closure/index.vue'),
-        meta: { title: '销号管理', icon: 'checked', permissions: ['rectification:closure:list'] }
-      },
-      {
-        path: 'statistics',
-        name: 'RectStatistics',
-        component: () => import('@/views/rectification/statistics/index.vue'),
-        meta: { title: '整改分析', icon: 'chart', permissions: ['rectification:statistics:view'] }
-      }
-    ]
-  },
-  {
-    path: '/rectification/task',
+    path: '/rectification/task-page',
     component: Layout,
     hidden: true,
+    permissions: ['rectification:task:query'],
     children: [
       {
         path: 'detail/:taskId',
-        name: 'RectTaskDetail',
         component: () => import('@/views/rectification/task/detail.vue'),
+        name: 'RectTaskDetail',
         meta: { title: '任务详情', activeMenu: '/rectification/task' }
       }
     ]
-  }
+  },
 ]
 
 const router = createRouter({

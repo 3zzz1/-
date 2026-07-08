@@ -226,7 +226,7 @@ async function handleUpload() {
         formData.append('materialType', form.materialType)
 
         pendingFiles.value.forEach((fileWrapper) => {
-          formData.append('files', fileWrapper.raw)
+          formData.append('file', fileWrapper.raw)
         })
 
         return uploadMaterial(formData)

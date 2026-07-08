@@ -67,7 +67,7 @@ public interface IRectTaskService {
      * @param taskId 任务ID
      * @return 通知书内容
      */
-    String generateNotice(Long taskId);
+    void generateNotice(Long taskId, jakarta.servlet.http.HttpServletResponse response);
 
     /**
      * 查询我的任务列表

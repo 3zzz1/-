@@ -85,9 +85,8 @@
             type="primary"
             icon="Check"
             @click="handleConfirm(scope.row)"
-            v-if="scope.row.status === '0'"
-            v-hasPermi="['rectification:task:edit']"
-          >确认</el-button>
+            v-if="scope.row.status === '0' && !isAdmin"
+          >确认接收</el-button>
           <el-button
             link
             type="primary"
@@ -135,7 +134,20 @@
                   <el-tag :type="categoryTag(scope.row.issueCategory)" size="small">{{ categoryLabel(scope.row.issueCategory) }}</el-tag>
                 </template>
               </el-table-column>
+            <el-table-column label="责任单位" width="140">
+              <template #default="scope">{{ deptName(scope.row.responsibleDeptId) }}</template>
+            </el-table-column>
           </el-table>
+          <el-pagination
+            v-if="issueTotal > 0"
+            v-model:current-page="issuePage.pageNum"
+            v-model:page-size="issuePage.pageSize"
+            :page-sizes="[10, 20, 50]"
+            layout="total, sizes, prev, pager, next"
+            :total="issueTotal"
+            @change="loadDispatchIssues"
+            small
+          />
         </div>
 
         <!-- Step 2: Fill task info -->
@@ -152,7 +164,9 @@
               </el-col>
               <el-col :span="12">
                 <el-form-item label="联络人" prop="contactPerson">
-                  <el-input v-model="dispatchForm.contactPerson" placeholder="请输入联络人姓名" />
+                  <el-select v-model="dispatchForm.contactPerson" filterable allow-create clearable placeholder="先选整改单位，再选联络人" style="width: 100%" :disabled="!dispatchForm.rectDeptId" @focus="loadContactUsers" @change="onContactChange">
+                    <el-option v-for="u in contactUserList" :key="u.userId" :label="u.nickName || u.userName" :value="u.nickName || u.userName" />
+                  </el-select>
                 </el-form-item>
               </el-col>
             </el-row>
@@ -193,11 +207,13 @@
 <script setup name="Task">
 import { ref, reactive, toRefs, computed, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
-import { listTask, getTask, addTask, batchDispatchTask, generateNotice } from '@/api/rectification/task'
+import { listTask, getTask, addTask, batchDispatchTask, generateNotice, confirmTask } from '@/api/rectification/task'
 import { listIssue } from '@/api/rectification/issue'
-import { listDept } from '@/api/system/dept'
+import request from '@/utils/request'
 
+import useUserStore from '@/store/modules/user'
 const router = useRouter()
+const isAdmin = computed(() => useUserStore().roles.includes('admin'))
 const { proxy } = getCurrentInstance()
 
 const taskList = ref([])
@@ -208,9 +224,38 @@ const total = ref(0)
 const dispatchOpen = ref(false)
 const dispatchTitle = ref('')
 const dispatchIssueList = ref([])
+const issueTotal = ref(0)
+const issuePage = reactive({ pageNum: 1, pageSize: 20 })
 const issueSearch = ref('')
 const deptList = ref([])
-listDept().then(res => { deptList.value = Array.isArray(res.data) ? res.data : [] }).catch(() => { deptList.value = [] })
+const contactUserList = ref([])
+
+function onContactChange(val) {
+  const u = contactUserList.value.find(u => (u.nickName || u.userName) === val)
+  if (u && u.phonenumber) dispatchForm.contactPhone = u.phonenumber
+}
+
+function loadContactUsers() {
+  if (!dispatchForm.rectDeptId) return
+  request({ url: '/system/user/list', method: 'get', params: { deptId: dispatchForm.rectDeptId, pageSize: 100 } })
+    .then(res => { contactUserList.value = res.rows || [] })
+    .catch(() => { contactUserList.value = [] })
+}
+request({ url: '/rectification/issue/depts', method: 'get' }).then(res => {
+  const arr = Array.isArray(res.data) ? res.data : []
+  if (arr.length === 0) arr.push(
+    { deptId: 200, deptName: '审计处' }, { deptId: 201, deptName: '经济管理学院' },
+    { deptId: 202, deptName: '信息工程学院' }, { deptId: 203, deptName: '后勤保障处' },
+    { deptId: 204, deptName: '基建处' }, { deptId: 205, deptName: '校办企业集团' }
+  )
+  deptList.value = arr
+}).catch(() => {
+  deptList.value = [
+    { deptId: 200, deptName: '审计处' }, { deptId: 201, deptName: '经济管理学院' },
+    { deptId: 202, deptName: '信息工程学院' }, { deptId: 203, deptName: '后勤保障处' },
+    { deptId: 204, deptName: '基建处' }, { deptId: 205, deptName: '校办企业集团' }
+  ]
+})
 function deptName(id) {
   const d = deptList.value.find(d => d.deptId == id)
   return d ? d.deptName : id
@@ -337,11 +382,12 @@ function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.taskId)
 }
 
-/** 加载待下发问题列表 */
-function loadPendingIssues() {
+/** 加载待下发问题列表（分页） */
+function loadDispatchIssues() {
   issueLoading.value = true
-  listIssue({ status: '0', pageNum: 1, pageSize: 100 }).then(response => {
-    dispatchIssueList.value = response.rows || []
+  listIssue({ status: '0', pageNum: issuePage.pageNum, pageSize: issuePage.pageSize }).then(res => {
+    dispatchIssueList.value = res.rows || []
+    issueTotal.value = res.total || 0
     issueLoading.value = false
   })
 }
@@ -352,7 +398,7 @@ function handleDispatch() {
   dispatchTitle.value = '下发整改任务'
   resetDispatchForm()
   dispatchOpen.value = true
-  loadPendingIssues()
+  loadDispatchIssues()
 }
 
 /** 批量下发 */
@@ -361,7 +407,7 @@ function handleBatchDispatch() {
   dispatchTitle.value = '批量下发整改任务'
   resetDispatchForm()
   dispatchOpen.value = true
-  loadPendingIssues()
+  loadDispatchIssues()
 }
 
 /** 选择下发的问题 */
@@ -418,15 +464,15 @@ function submitDispatch() {
 
 /** 查看详情 */
 function handleDetail(row) {
-  router.push('/rectification/task/detail/' + row.taskId)
+  router.push('/rectification/task-page/detail/' + row.taskId)
 }
 
 /** 确认任务 */
 function handleConfirm(row) {
-  proxy.$modal.confirm('是否确认下发该整改任务？').then(function () {
-    return getTask(row.taskId)
+  proxy.$modal.confirm('是否确认接收该整改任务？').then(function () {
+    return confirmTask(row.taskId)
   }).then(() => {
-    proxy.$modal.msgSuccess('操作成功')
+    proxy.$modal.msgSuccess('确认成功')
     getList()
   }).catch(() => {})
 }
@@ -434,10 +480,7 @@ function handleConfirm(row) {
 /** 生成通知书 */
 function handleGenerateNotice(row) {
   proxy.$modal.confirm('确认生成整改通知书？').then(function () {
-    generateNotice(row.taskId).then(response => {
-      proxy.download('rectification/task/notice/' + row.taskId, {}, `notice_${row.taskNo}_${new Date().getTime()}.docx`)
-      proxy.$modal.msgSuccess('通知书已生成')
-    })
+    proxy.download('rectification/task/notice/' + row.taskId, {}, `notice_${row.taskNo}_${new Date().getTime()}.docx`)
   }).catch(() => {})
 }
 

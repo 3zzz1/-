@@ -50,7 +50,9 @@
                 <el-tag :type="sourceTypeTag(issueInfo.sourceType)">{{ sourceTypeLabel(issueInfo.sourceType) }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="问题标题" :span="2">{{ issueInfo.issueTitle }}</el-descriptions-item>
-              <el-descriptions-item label="问题分类">{{ issueInfo.issueCategory }}</el-descriptions-item>
+              <el-descriptions-item label="问题分类">
+                <el-tag>{{ categoryLabel(issueInfo.issueCategory) }}</el-tag>
+              </el-descriptions-item>
               <el-descriptions-item label="涉及金额">{{ issueInfo.issueAmount ? issueInfo.issueAmount.toLocaleString() : '-' }}</el-descriptions-item>
               <el-descriptions-item label="责任单位">{{ issueInfo.responsibleDeptId }}</el-descriptions-item>
               <el-descriptions-item label="责任干部">{{ issueInfo.responsiblePerson }}</el-descriptions-item>
@@ -78,14 +80,9 @@
       <!-- Tab 3: 佐证材料 -->
       <el-tab-pane label="佐证材料" name="material">
         <div class="tab-content">
-          <el-row :gutter="20">
-            <el-col :span="16">
-              <MaterialList :task-id="taskId" />
-            </el-col>
-            <el-col :span="8">
-              <MaterialUpload :task-id="taskId" @uploaded="handleMaterialUploaded" />
-            </el-col>
-          </el-row>
+          <el-button type="primary" icon="Upload" @click="uploadOpen = true" style="margin-bottom:10px">上传材料</el-button>
+          <MaterialList :task-id="taskId" />
+          <MaterialUpload v-model="uploadOpen" :task-id="taskId" :issue-id="issueInfo.issueId" @uploaded="handleMaterialUploaded" />
         </div>
       </el-tab-pane>
 
@@ -108,7 +105,7 @@
 </template>
 
 <script setup name="TaskDetail">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, getCurrentInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { getTask, confirmTask } from '@/api/rectification/task'
 import { getIssue } from '@/api/rectification/issue'
@@ -117,20 +114,22 @@ import { listMaterial } from '@/api/rectification/material'
 import { getReport } from '@/api/rectification/report'
 import { getOverview } from '@/api/rectification/statistics'
 
-// Placeholder components (to be replaced with actual implementations)
-import PlanEditor from '../plan/editor.vue'
-import MaterialList from '../material/list.vue'
-import MaterialUpload from '../material/upload.vue'
-import ReportEditor from '../report/editor.vue'
-import LeaderApproval from '../report/leaderApproval.vue'
-import TaskTimeline from './timeline.vue'
+// Sub-components (lazy loaded to avoid Quill init issues)
+import { defineAsyncComponent } from 'vue'
+const PlanEditor = defineAsyncComponent(() => import('../plan/PlanEditor.vue'))
+const MaterialList = defineAsyncComponent(() => import('../material/MaterialList.vue'))
+const MaterialUpload = defineAsyncComponent(() => import('../material/MaterialUpload.vue'))
+const ReportEditor = defineAsyncComponent(() => import('../report/ReportEditor.vue'))
+const LeaderApproval = defineAsyncComponent(() => import('../report/LeaderApproval.vue'))
+const TaskTimeline = defineAsyncComponent(() => import('./components/TaskTimeline.vue'))
 
 const router = useRouter()
 const route = useRoute()
 const { proxy } = getCurrentInstance()
 
 const taskId = ref(route.params.taskId)
-const activeTab = ref('basic')
+const activeTab = ref(route.query.tab || 'basic')
+const uploadOpen = ref(false)
 
 const taskInfo = ref({})
 const issueInfo = ref({})
@@ -157,12 +156,16 @@ const issueStatusOptions = ref([
 ])
 
 const sourceTypeOptions = ref([
-  { label: '内源审计', value: 'inner' },
-  { label: '外源巡视巡察', value: 'inspection' },
-  { label: '外部督查', value: 'supervision' }
+  { label: '内源审计', value: '1' },
+  { label: '外源巡视巡察', value: '2' },
+  { label: '外部督查', value: '3' }
 ])
+const categoryOptions = [
+  { label: '资金类', value: 'FUND' }, { label: '资产类', value: 'ASSET' },
+  { label: '采购类', value: 'PURCHASE' }, { label: '人事类', value: 'HR' },
+  { label: '基建类', value: 'CONSTRUCTION' }, { label: '其他', value: 'OTHER' }
+]
 
-// 辅助函数
 function taskStatusLabel(val) {
   const item = taskStatusOptions.value.find(d => d.value === val)
   return item ? item.label : val
@@ -184,8 +187,12 @@ function sourceTypeLabel(val) {
   return item ? item.label : val
 }
 function sourceTypeTag(val) {
-  const map = { inner: '', inspection: 'warning', supervision: 'danger' }
+  const map = { '1': '', '2': 'warning', '3': 'danger' }
   return map[val] || ''
+}
+function categoryLabel(val) {
+  const item = categoryOptions.find(d => d.value === val)
+  return item ? item.label : val
 }
 function riskLevelLabel(val) {
   const map = { '1': '低', '2': '中', '3': '高' }
@@ -200,17 +207,16 @@ function riskLevelTag(val) {
 function loadTaskInfo() {
   loading.value = true
   getTask(taskId.value).then(response => {
-    taskInfo.value = response.data
-    // 加载关联问题信息
-    if (taskInfo.value.issueId) {
-      getIssue(taskInfo.value.issueId).then(res => {
-        issueInfo.value = res.data
-      })
-    }
+    taskInfo.value = response.data || {}
+    // 加载关联问题（issueIds是JSON数组如"[1,2,3]"）
+    try {
+      const ids = JSON.parse(taskInfo.value.issueIds || '[]')
+      if (ids.length > 0) {
+        getIssue(ids[0]).then(res => { issueInfo.value = res.data || {} })
+      }
+    } catch(e) {}
     loading.value = false
-  }).catch(() => {
-    loading.value = false
-  })
+  }).catch(() => { loading.value = false })
 }
 
 /** 加载方案数据 */

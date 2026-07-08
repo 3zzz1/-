@@ -2,6 +2,7 @@ package com.audit.rectification.controller;
 
 import java.util.List;
 import java.util.Map;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -106,9 +107,9 @@ public class RectTaskController extends BaseController {
      * 生成整改通知书
      */
     @PreAuthorize("@ss.hasPermi('rectification:task:notice')")
-    @GetMapping("/notice/{taskId}")
-    public AjaxResult generateNotice(@PathVariable Long taskId) {
-        return success(rectTaskService.generateNotice(taskId));
+    @PostMapping("/notice/{taskId}")
+    public void generateNotice(@PathVariable Long taskId, HttpServletResponse response) {
+        rectTaskService.generateNotice(taskId, response);
     }
 
     /**

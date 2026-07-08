@@ -259,7 +259,7 @@ function loadProgress() {
   if (!props.taskId) return
   loading.value = true
   request({
-    url: '/rectification/task/progress/' + props.taskId,
+    url: '/rectification/progress/' + props.taskId,
     method: 'get'
   })
     .then((res) => {
