@@ -181,11 +181,11 @@ const issueInfo = reactive({
 })
 
 const statusOptions = ref([
-  { label: '待接收', value: '0' },
+  { label: '待确认', value: '0' },
   { label: '整改中', value: '1' },
-  { label: '待审核', value: '2' },
-  { label: '已销号', value: '3' },
-  { label: '持续整改', value: '4' }
+  { label: '已提交报告', value: '2' },
+  { label: '待审核', value: '3' },
+  { label: '已完成', value: '4' }
 ])
 
 const sourceTypeOptions = ref([

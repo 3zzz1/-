@@ -97,7 +97,7 @@
           <el-button link type="primary" icon="View" @click="handleDetail(scope.row)" v-if="!isUnitLeader">详情</el-button>
           <el-button link type="primary" icon="Edit" @click="handleEditPlan(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:plan:edit']">方案</el-button>
           <el-button link type="danger" icon="CircleCheck" @click="handleApplyClosure(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:closure:apply']">销号</el-button>
-          <el-button link type="warning" icon="Checked" @click="handleGoApproval(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:report:approve']">审批</el-button>
+          <el-button link type="warning" icon="Checked" @click="handleGoApproval(scope.row)" v-if="['1','2','3'].includes(scope.row.status)" v-hasPermi="['rectification:report:approve']">审批</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -255,11 +255,11 @@ const extensionRules = reactive({
 })
 
 const taskStatusOptions = ref([
-  { label: '待接收', value: '0' },
+  { label: '待确认', value: '0' },
   { label: '整改中', value: '1' },
-  { label: '待审核', value: '2' },
-  { label: '已销号', value: '3' },
-  { label: '持续整改', value: '4' }
+  { label: '已提交报告', value: '2' },
+  { label: '待审核', value: '3' },
+  { label: '已完成', value: '4' }
 ])
 
 const sourceTypeOptions = ref([
@@ -275,7 +275,7 @@ const statCards = computed(() => {
     { status: 'all', label: '全部任务', count: total.value, icon: 'List', cardClass: '' },
     { status: '0', label: '待接收', count: all.filter(t => t.status === '0').length, icon: 'Clock', cardClass: 'stat-card-info' },
     { status: '1', label: '整改中', count: all.filter(t => t.status === '1').length, icon: 'Loading', cardClass: 'stat-card-warning' },
-    { status: '3', label: '已销号', count: all.filter(t => t.status === '3').length, icon: 'CircleCheck', cardClass: 'stat-card-success' }
+    { status: '4', label: '已完成', count: all.filter(t => t.status === '4').length, icon: 'CircleCheck', cardClass: 'stat-card-success' }
   ]
 })
 
@@ -285,7 +285,7 @@ function taskStatusLabel(val) {
   return item ? item.label : val
 }
 function taskStatusTag(val) {
-  const map = { '0': 'info', '1': 'warning', '2': 'primary', '3': 'success', '4': 'danger' }
+  const map = { '0': 'info', '1': 'warning', '2': 'primary', '3': '', '4': 'success' }
   return map[val] || ''
 }
 function sourceTypeLabel(val) {

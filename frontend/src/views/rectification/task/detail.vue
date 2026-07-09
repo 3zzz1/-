@@ -142,11 +142,11 @@ const loading = ref(false)
 
 // 状态下拉
 const taskStatusOptions = ref([
-  { label: '待接收', value: '0' },
+  { label: '待确认', value: '0' },
   { label: '整改中', value: '1' },
-  { label: '待审核', value: '2' },
-  { label: '已销号', value: '3' },
-  { label: '持续整改', value: '4' }
+  { label: '已提交报告', value: '2' },
+  { label: '待审核', value: '3' },
+  { label: '已完成', value: '4' }
 ])
 
 const issueStatusOptions = ref([
@@ -173,7 +173,7 @@ function taskStatusLabel(val) {
   return item ? item.label : val
 }
 function taskStatusTag(val) {
-  const map = { '0': 'info', '1': 'warning', '2': 'primary', '3': 'success', '4': 'danger' }
+  const map = { '0': 'info', '1': 'warning', '2': 'primary', '3': '', '4': 'success' }
   return map[val] || ''
 }
 function issueStatusLabel(val) {

@@ -161,7 +161,7 @@
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="审核人" label-align="right">
-          {{ viewData.auditUserId || viewData.auditor || '-' }}
+          {{ viewData.auditor || viewData.auditUserId || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="审核时间" label-align="right">
           {{ viewData.auditTime || viewData.updateTime || '-' }}
@@ -268,11 +268,17 @@ function getList() {
     if (list.length === 0) { closureList.value = []; loading.value = false; return }
     let loaded = 0
     list.forEach((item) => {
+      let done = 0
+      const checkDone = () => { done++; if (done >= 2) { loaded++; if (loaded >= list.length) { closureList.value = [...list]; loading.value = false } } }
       request({ url: '/rectification/issue/' + item.issueId, method: 'get' }).then(r => {
         item.issueTitle = (r.data || {}).issueTitle || ''
-      }).catch(() => {}).finally(() => {
-        loaded++; if (loaded >= list.length) { closureList.value = [...list]; loading.value = false }
-      })
+      }).catch(() => {}).finally(checkDone)
+      if (item.auditUserId) {
+        request({ url: '/system/user/list', method: 'get', params: { userId: item.auditUserId } }).then(r => {
+          const u = ((r.rows || [])[0] || {})
+          item.auditor = u.nickName || u.userName || ''
+        }).catch(() => {}).finally(checkDone)
+      } else { checkDone() }
     })
     closureList.value = [...list]
   }).catch(() => { loading.value = false })
@@ -303,37 +309,53 @@ function handleApplySuccess() {
 
 /** View */
 function handleView(row) {
-  // Try to load full detail from API
   const closureId = row.id || row.closureId
+  const data = closureId ? row : row
   if (closureId) {
     getClosure(closureId).then(res => {
       viewData.value = res.data || res || row
+      const iid = viewData.value.issueId
+      if (iid) {
+        request({ url: '/rectification/issue/' + iid, method: 'get' }).then(r => {
+          viewData.value.issueTitle = (r.data || {}).issueTitle || ''
+        })
+      }
+      // 加载审核人姓名
+      if (viewData.value.auditUserId) {
+        request({ url: '/system/user/list', method: 'get', params: { userId: viewData.value.auditUserId } }).then(r => {
+          const u = ((r.rows || [])[0] || {})
+          viewData.value.auditor = u.nickName || u.userName || ''
+        })
+      }
       viewOpen.value = true
-    }).catch(() => {
-      viewData.value = row
-      viewOpen.value = true
-    })
+    }).catch(() => { viewData.value = row; viewOpen.value = true })
   } else {
-    viewData.value = row
-    viewOpen.value = true
+    viewData.value = row; viewOpen.value = true
   }
 }
 
 /** Audit */
 function handleAudit(row) {
   const closureId = row.id || row.closureId
-  if (closureId) {
-    getClosure(closureId).then(res => {
-      auditData.value = res.data || res || row
-      auditOpen.value = true
-    }).catch(() => {
-      auditData.value = row
+  if (!closureId) { auditData.value = row; auditOpen.value = true; return }
+  getClosure(closureId).then(res => {
+    const c = res.data || res || row
+    c.applicant = c.applyBy || c.createBy || ''
+    c.description = c.applyContent || ''
+    const promises = []
+    if (c.issueId) {
+      promises.push(request({ url: '/rectification/issue/' + c.issueId, method: 'get' }).then(r => {
+        c.issueTitle = (r.data || {}).issueTitle || ''
+      }))
+      promises.push(request({ url: '/rectification/material/list/' + c.issueId, method: 'get' }).then(r => {
+        c.attachments = r.rows || []
+      }))
+    }
+    Promise.all(promises).then(() => {
+      auditData.value = c
       auditOpen.value = true
     })
-  } else {
-    auditData.value = row
-    auditOpen.value = true
-  }
+  }).catch(() => { auditData.value = row; auditOpen.value = true })
 }
 
 function handleAuditSuccess() {

@@ -91,7 +91,7 @@
 </template>
 
 <script setup name="ClosureAudit">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, getCurrentInstance } from 'vue'
 import { auditClosure } from '@/api/rectification/closure'
 
 const props = defineProps({
@@ -142,15 +142,13 @@ const rules = {
 }
 
 watch(() => props.closureData, (val) => {
-  if (val && val.id) {
-    form.id = val.id
-    form.issueTitle = val.issueTitle || val.title || ''
-    form.applicant = val.applicant || val.applyBy || val.createBy || ''
-    form.applyTime = val.applyTime || val.createTime || ''
-    form.description = val.description || val.applyContent || ''
-    form.attachments = val.attachments || val.files || []
-  }
-  // Reset audit form
+  if (!val) return
+  form.id = val.id || val.closureId || null
+  form.issueTitle = val.issueTitle || val.title || ''
+  form.applicant = val.applicant || val.applyBy || val.createBy || ''
+  form.applyTime = val.applyTime || val.createTime || ''
+  form.description = val.description || val.applyContent || ''
+  form.attachments = val.attachments || val.files || []
   auditForm.result = ''
   auditForm.opinion = ''
   auditForm.reworkRequirement = ''
@@ -181,10 +179,10 @@ async function handleSubmit() {
       { confirmButtonText: '确定', cancelButtonText: '取消', type: isApproved ? 'success' : 'warning' }
     ).then(() => {
       return auditClosure({
-        id: form.id,
-        approved: isApproved,
-        opinion: auditForm.opinion,
-        reworkRequirement: isApproved ? null : auditForm.reworkRequirement
+        closureId: form.id,
+        auditResult: isApproved ? '1' : '2',
+        auditOpinion: auditForm.opinion,
+        reRectRequired: isApproved ? null : auditForm.reworkRequirement
       })
     }).then(() => {
       proxy.$modal.msgSuccess(`销号申请已${actionText}`)
@@ -197,9 +195,9 @@ async function handleSubmit() {
 }
 
 function downloadFile(file) {
-  const url = file.url || file.fileUrl || file.path
-  if (url) {
-    window.open(url, '_blank')
+  const mid = file.materialId || file.id
+  if (mid) {
+    proxy.download('/rectification/material/download/' + mid, {}, file.fileName || 'download')
   } else {
     proxy.$modal.msgWarning('文件地址不可用')
   }

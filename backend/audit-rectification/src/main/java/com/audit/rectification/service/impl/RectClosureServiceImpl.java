@@ -8,9 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.audit.rectification.domain.RectClosure;
 import com.audit.rectification.domain.RectIssue;
 import com.audit.rectification.domain.RectProgress;
+import com.audit.rectification.domain.RectTask;
 import com.audit.rectification.mapper.RectClosureMapper;
 import com.audit.rectification.mapper.RectIssueMapper;
 import com.audit.rectification.mapper.RectProgressMapper;
+import com.audit.rectification.mapper.RectTaskMapper;
 import com.audit.rectification.service.IRectClosureService;
 import com.ruoyi.common.utils.SecurityUtils;
 
@@ -31,6 +33,9 @@ public class RectClosureServiceImpl implements IRectClosureService {
 
     @Autowired
     private RectProgressMapper rectProgressMapper;
+
+    @Autowired
+    private RectTaskMapper rectTaskMapper;
 
     @Override
     public List<RectClosure> selectRectClosureList(RectClosure closure) {
@@ -64,6 +69,14 @@ public class RectClosureServiceImpl implements IRectClosureService {
         issue.setUpdateBy(SecurityUtils.getUsername());
         issue.setUpdateTime(new Date());
         rectIssueMapper.updateRectIssue(issue);
+
+        // 同步更新任务状态为"待审核"
+        RectTask t = new RectTask();
+        t.setTaskId(taskId);
+        t.setStatus("3");
+        t.setUpdateBy(SecurityUtils.getUsername());
+        t.setUpdateTime(new Date());
+        rectTaskMapper.updateRectTask(t);
 
         // 创建进度记录
         RectProgress progress = new RectProgress();
@@ -110,6 +123,14 @@ public class RectClosureServiceImpl implements IRectClosureService {
             issue.setUpdateTime(new Date());
             rectIssueMapper.updateRectIssue(issue);
 
+            // 更新任务状态为"已完成"
+            RectTask task = new RectTask();
+            task.setTaskId(existingClosure.getTaskId());
+            task.setStatus("4");
+            task.setUpdateBy(SecurityUtils.getUsername());
+            task.setUpdateTime(new Date());
+            rectTaskMapper.updateRectTask(task);
+
             // 创建进度记录
             RectProgress progress = new RectProgress();
             progress.setTaskId(existingClosure.getTaskId());
@@ -134,6 +155,14 @@ public class RectClosureServiceImpl implements IRectClosureService {
             issue.setUpdateBy(SecurityUtils.getUsername());
             issue.setUpdateTime(new Date());
             rectIssueMapper.updateRectIssue(issue);
+
+            // 同时更新任务状态为"整改中"，让责任人重新看到
+            RectTask task = new RectTask();
+            task.setTaskId(existingClosure.getTaskId());
+            task.setStatus("1");
+            task.setUpdateBy(SecurityUtils.getUsername());
+            task.setUpdateTime(new Date());
+            rectTaskMapper.updateRectTask(task);
 
             // 创建进度记录
             RectProgress progress = new RectProgress();

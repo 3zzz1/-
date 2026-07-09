@@ -1,9 +1,12 @@
 package com.audit.rectification.controller;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.net.URLEncoder;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.audit.rectification.domain.RectMaterial;
+import com.audit.rectification.mapper.RectMaterialMapper;
 import com.audit.rectification.service.IRectMaterialService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -35,6 +39,8 @@ public class RectMaterialController extends BaseController {
 
     @Autowired
     private IRectMaterialService rectMaterialService;
+    @Autowired
+    private RectMaterialMapper rectMaterialMapper;
 
     /**
      * 查询整改材料列表
@@ -91,10 +97,18 @@ public class RectMaterialController extends BaseController {
     /**
      * 获取材料详情（含下载路径）
      */
-    @PreAuthorize("@ss.hasPermi('rectification:material:download')")
-    @GetMapping("/info/{materialId}")
-    public AjaxResult getInfo(@PathVariable Long materialId) {
-        List<RectMaterial> list = rectMaterialService.selectRectMaterialByIssueId(materialId);
-        return success(list.isEmpty() ? null : list.get(0));
+    @org.springframework.web.bind.annotation.RequestMapping(
+        value = "/download/{materialId}",
+        method = {org.springframework.web.bind.annotation.RequestMethod.GET, org.springframework.web.bind.annotation.RequestMethod.POST})
+    public void download(@PathVariable Long materialId, HttpServletResponse response) throws Exception {
+        RectMaterial m = rectMaterialMapper.selectRectMaterialById(materialId);
+        if (m == null) throw new RuntimeException("Attachment record not found");
+        java.io.File f = new java.io.File(m.getFilePath());
+        if (!f.exists()) throw new RuntimeException("Physical file not found: " + m.getFileName());
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment; filename=" + java.net.URLEncoder.encode(m.getFileName(), "UTF-8"));
+        java.io.FileInputStream fis = new java.io.FileInputStream(f);
+        org.apache.commons.io.IOUtils.copy(fis, response.getOutputStream());
+        fis.close();
     }
 }
