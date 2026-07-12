@@ -3,7 +3,6 @@ package com.audit.rectification.controller;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -32,7 +31,6 @@ public class RectNotificationController extends BaseController {
     /**
      * 查询我的通知列表
      */
-    @PreAuthorize("@ss.hasPermi('rectification:notification:list')")
     @GetMapping("/my-list")
     public TableDataInfo myList() {
         startPage();
@@ -43,7 +41,6 @@ public class RectNotificationController extends BaseController {
     /**
      * 标记通知为已读
      */
-    @PreAuthorize("@ss.hasPermi('rectification:notification:read')")
     @PutMapping("/read/{ids}")
     public AjaxResult read(@PathVariable Long[] ids) {
         return toAjax(rectNotificationService.markAsRead(ids));
@@ -52,7 +49,6 @@ public class RectNotificationController extends BaseController {
     /**
      * 获取未读通知数量
      */
-    @PreAuthorize("@ss.hasPermi('rectification:notification:query')")
     @GetMapping("/unread-count")
     public AjaxResult unreadCount() {
         return success(rectNotificationService.getUnreadCount());

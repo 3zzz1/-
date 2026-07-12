@@ -8,13 +8,37 @@
       <template v-if="appStore.device !== 'mobile'">
         <header-search id="header-search" class="right-menu-item" />
 
-        <el-tooltip content="源码地址" effect="dark" placement="bottom">
-          <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <el-tooltip content="文档地址" effect="dark" placement="bottom">
-          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
-        </el-tooltip>
+        <el-dropdown trigger="click" placement="bottom-end" @visible-change="handleNoticeVisible">
+          <div class="notice-trigger right-menu-item hover-effect">
+            <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
+              <el-icon :size="19"><Bell /></el-icon>
+            </el-badge>
+          </div>
+          <template #dropdown>
+            <div class="notice-dropdown">
+              <div class="notice-header">
+                <strong>消息通知</strong>
+                <el-button link type="primary" size="small" :disabled="unreadCount === 0" @click.stop="markAllRead">
+                  全部已读
+                </el-button>
+              </div>
+              <div v-if="noticeList.length" class="notice-list">
+                <div
+                  v-for="item in noticeList"
+                  :key="item.notificationId"
+                  class="notice-item"
+                  :class="{ unread: item.readStatus !== '1' }"
+                  @click="openNotice(item)"
+                >
+                  <div class="notice-title">{{ item.title || '消息提醒' }}</div>
+                  <div class="notice-content">{{ item.content || '-' }}</div>
+                  <div class="notice-time">{{ item.createTime || item.sendTime || '' }}</div>
+                </div>
+              </div>
+              <el-empty v-else description="暂无消息" :image-size="72" />
+            </div>
+          </template>
+        </el-dropdown>
 
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
 
@@ -22,6 +46,7 @@
           <size-select id="size-select" class="right-menu-item hover-effect" />
         </el-tooltip>
       </template>
+
       <div class="avatar-container">
         <el-dropdown @command="handleCommand" class="right-menu-item hover-effect" trigger="click">
           <div class="avatar-wrapper">
@@ -48,6 +73,8 @@
 </template>
 
 <script setup>
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import Breadcrumb from '@/components/Breadcrumb'
 import TopNav from '@/components/TopNav'
@@ -55,15 +82,18 @@ import Hamburger from '@/components/Hamburger'
 import Screenfull from '@/components/Screenfull'
 import SizeSelect from '@/components/SizeSelect'
 import HeaderSearch from '@/components/HeaderSearch'
-import RuoYiGit from '@/components/RuoYi/Git'
-import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
+import { getUnreadCount, listMyNotification, markAsRead } from '@/api/rectification/notification'
 
+const router = useRouter()
 const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
+const unreadCount = ref(0)
+const noticeList = ref([])
+let noticeTimer = null
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -71,14 +101,14 @@ function toggleSideBar() {
 
 function handleCommand(command) {
   switch (command) {
-    case "setLayout":
-      setLayout();
-      break;
-    case "logout":
-      logout();
-      break;
+    case 'setLayout':
+      setLayout()
+      break
+    case 'logout':
+      logout()
+      break
     default:
-      break;
+      break
   }
 }
 
@@ -89,18 +119,76 @@ function logout() {
     type: 'warning'
   }).then(() => {
     userStore.logOut().then(() => {
-      location.href = '/index';
+      location.href = '/index'
     })
-  }).catch(() => { });
+  }).catch(() => {})
+}
+
+function loadUnreadCount() {
+  getUnreadCount().then(res => {
+    unreadCount.value = Number(res.data || 0)
+  }).catch(() => {})
+}
+
+function loadNoticeList() {
+  listMyNotification({ pageNum: 1, pageSize: 8 }).then(res => {
+    noticeList.value = res.rows || []
+  }).catch(() => {})
+}
+
+function handleNoticeVisible(visible) {
+  if (visible) {
+    loadNoticeList()
+    loadUnreadCount()
+  }
+}
+
+function openNotice(item) {
+  const id = item.notificationId
+  const taskId = item.taskId
+  if (id && item.readStatus !== '1') {
+    markAsRead(id).then(() => {
+      item.readStatus = '1'
+      loadUnreadCount()
+    }).catch(() => {})
+  }
+  if (taskId) {
+    router.push('/rectification/task-page/detail/' + taskId)
+  }
+}
+
+function markAllRead() {
+  const ids = noticeList.value
+    .filter(item => item.readStatus !== '1')
+    .map(item => item.notificationId)
+    .filter(Boolean)
+  if (!ids.length) return
+  markAsRead(ids.join(',')).then(() => {
+    noticeList.value.forEach(item => {
+      item.readStatus = '1'
+    })
+    unreadCount.value = 0
+  }).catch(() => {})
 }
 
 const emits = defineEmits(['setLayout'])
 function setLayout() {
-  emits('setLayout');
+  emits('setLayout')
 }
+
+onMounted(() => {
+  loadUnreadCount()
+  noticeTimer = window.setInterval(loadUnreadCount, 60000)
+})
+
+onBeforeUnmount(() => {
+  if (noticeTimer) {
+    window.clearInterval(noticeTimer)
+  }
+})
 </script>
 
-<style lang='scss' scoped>
+<style lang="scss" scoped>
 .navbar {
   height: 50px;
   overflow: hidden;
@@ -130,11 +218,6 @@ function setLayout() {
     left: 50px;
   }
 
-  .errLog-container {
-    display: inline-block;
-    vertical-align: top;
-  }
-
   .right-menu {
     float: right;
     height: 100%;
@@ -146,7 +229,9 @@ function setLayout() {
     }
 
     .right-menu-item {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
       padding: 0 8px;
       height: 100%;
       font-size: 18px;
@@ -187,5 +272,71 @@ function setLayout() {
       }
     }
   }
+}
+
+.notice-trigger {
+  width: 42px;
+}
+
+.notice-dropdown {
+  width: 340px;
+  max-height: 430px;
+  overflow: hidden;
+}
+
+.notice-header {
+  height: 42px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.notice-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notice-item {
+  padding: 10px 12px;
+  border-bottom: 1px solid #f0f2f5;
+  cursor: pointer;
+
+  &:hover {
+    background: #f7f9fc;
+  }
+
+  &.unread .notice-title::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: #f56c6c;
+    vertical-align: middle;
+  }
+}
+
+.notice-title {
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.notice-content {
+  margin-top: 4px;
+  color: #606266;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-all;
+}
+
+.notice-time {
+  margin-top: 6px;
+  color: #a8abb2;
+  font-size: 12px;
 }
 </style>

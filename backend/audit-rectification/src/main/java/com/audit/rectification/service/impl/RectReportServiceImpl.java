@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.audit.rectification.domain.*;
 import com.audit.rectification.mapper.*;
+import com.audit.rectification.service.IRectNotificationService;
 import com.audit.rectification.service.IRectReportService;
 import com.ruoyi.common.utils.SecurityUtils;
 
@@ -27,6 +28,8 @@ public class RectReportServiceImpl implements IRectReportService {
     private RectClosureMapper rectClosureMapper;
     @Autowired
     private RectIssueMapper rectIssueMapper;
+    @Autowired
+    private IRectNotificationService rectNotificationService;
 
     @Override
     public RectReport selectRectReportByTaskId(Long taskId) {
@@ -121,6 +124,12 @@ public class RectReportServiceImpl implements IRectReportService {
             p.setOperatorName(SecurityUtils.getUsername());
             p.setOperateTime(new Date());
             rectProgressMapper.insertRectProgress(p);
+            RectTask task = rectTaskMapper.selectRectTaskById(full.getTaskId());
+            Long issueId = firstIssueId(task);
+            rectNotificationService.notifyRoles(new String[] { "audited_unit_leader" },
+                    task != null ? task.getRectDeptId() : null,
+                    full.getTaskId(), issueId,
+                    "整改报告待审批", "整改责任人已提交整改报告，请及时审批。");
         }
         return result;
     }
@@ -155,8 +164,28 @@ public class RectReportServiceImpl implements IRectReportService {
             p.setOperatorName(SecurityUtils.getUsername());
             p.setOperateTime(new Date());
             rectProgressMapper.insertRectProgress(p);
+            Long issueId = firstIssueId(rectTaskMapper.selectRectTaskById(full.getTaskId()));
+            String title = "1".equals(status) ? "整改报告审批通过" : "整改报告被驳回";
+            String content = "1".equals(status)
+                    ? "单位负责人已审批通过整改报告，可继续发起销号申请。"
+                    : "单位负责人已驳回整改报告，请根据驳回原因修改后重新提交。驳回原因：" + (opinion != null ? opinion : "");
+            rectNotificationService.notifyUser(full.getSubmitUserId(), full.getTaskId(), issueId, title, content);
         }
         return result;
+    }
+
+    private Long firstIssueId(RectTask task) {
+        if (task == null || task.getIssueIds() == null) {
+            return null;
+        }
+        String ids = task.getIssueIds().replace("[", "").replace("]", "");
+        for (String id : ids.split(",")) {
+            try {
+                return Long.parseLong(id.trim());
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
     }
 
     private void rollbackPendingClosureAfterReportReject(RectReport report, String opinion) {

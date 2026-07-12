@@ -47,6 +47,7 @@
             <if test="recipientUserId != null">recipient_user_id,</if>
             <if test="recipientPhone != null and recipientPhone != ''">recipient_phone,</if>
             <if test="sendStatus != null and sendStatus != ''">send_status,</if>
+            <if test="sendTime != null">send_time,</if>
             <if test="readStatus != null and readStatus != ''">read_status,</if>
             create_time
         )values(
@@ -58,6 +59,7 @@
             <if test="recipientUserId != null">#{recipientUserId},</if>
             <if test="recipientPhone != null and recipientPhone != ''">#{recipientPhone},</if>
             <if test="sendStatus != null and sendStatus != ''">#{sendStatus},</if>
+            <if test="sendTime != null">#{sendTime},</if>
             <if test="readStatus != null and readStatus != ''">#{readStatus},</if>
             sysdate()
         )

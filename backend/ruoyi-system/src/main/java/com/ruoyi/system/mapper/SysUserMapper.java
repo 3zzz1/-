@@ -53,6 +53,15 @@ public interface SysUserMapper
     public SysUser selectUserById(Long userId);
 
     /**
+     * 根据角色权限字符查询用户。
+     *
+     * @param roleKeys 角色权限字符
+     * @param deptId 部门ID，可为空
+     * @return 用户集合
+     */
+    public List<SysUser> selectUsersByRoleKeys(@Param("roleKeys") String[] roleKeys, @Param("deptId") Long deptId);
+
+    /**
      * 新增用户信息
      * 
      * @param user 用户信息

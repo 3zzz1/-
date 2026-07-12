@@ -40,4 +40,14 @@ public interface IRectNotificationService {
      * @return 结果
      */
     int insertNotification(RectNotification notification);
+
+    /**
+     * 给指定用户发送站内通知。
+     */
+    int notifyUser(Long userId, Long taskId, Long issueId, String title, String content);
+
+    /**
+     * 给指定角色用户发送站内通知。
+     */
+    int notifyRoles(String[] roleKeys, Long deptId, Long taskId, Long issueId, String title, String content);
 }

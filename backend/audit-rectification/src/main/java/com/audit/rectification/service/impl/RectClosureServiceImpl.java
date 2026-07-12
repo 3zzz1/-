@@ -17,6 +17,7 @@ import com.audit.rectification.mapper.RectReportMapper;
 import com.audit.rectification.mapper.RectTaskMapper;
 import com.ruoyi.common.exception.ServiceException;
 import com.audit.rectification.service.IRectClosureService;
+import com.audit.rectification.service.IRectNotificationService;
 import com.ruoyi.common.utils.SecurityUtils;
 
 /**
@@ -42,6 +43,9 @@ public class RectClosureServiceImpl implements IRectClosureService {
 
     @Autowired
     private RectReportMapper rectReportMapper;
+
+    @Autowired
+    private IRectNotificationService rectNotificationService;
 
     @Override
     public List<RectClosure> selectRectClosureList(RectClosure closure) {
@@ -125,6 +129,10 @@ public class RectClosureServiceImpl implements IRectClosureService {
         progress.setCreateTime(new Date());
         rectProgressMapper.insertRectProgress(progress);
 
+        rectNotificationService.notifyRoles(new String[] { "admin", "audit_director", "audit_lead" },
+                null, taskId, issueId, "销号申请待审核",
+                "整改单位已提交销号申请，请及时审核。");
+
         return rows;
     }
 
@@ -177,6 +185,8 @@ public class RectClosureServiceImpl implements IRectClosureService {
             progress.setCreateBy(SecurityUtils.getUsername());
             progress.setCreateTime(new Date());
             rectProgressMapper.insertRectProgress(progress);
+            rectNotificationService.notifyUser(existingClosure.getApplyUserId(), existingClosure.getTaskId(),
+                    existingClosure.getIssueId(), "销号审核通过", "审计处已通过销号审核，问题已正式销号。");
         } else {
             // 审批驳回：退回整改
             closure.setStatus("2");
@@ -224,6 +234,10 @@ public class RectClosureServiceImpl implements IRectClosureService {
             progress.setCreateBy(SecurityUtils.getUsername());
             progress.setCreateTime(new Date());
             rectProgressMapper.insertRectProgress(progress);
+            rectNotificationService.notifyUser(existingClosure.getApplyUserId(), existingClosure.getTaskId(),
+                    existingClosure.getIssueId(), "销号申请被驳回",
+                    "审计处已驳回销号申请，请根据补充整改要求修改后重新提交。补充整改要求："
+                            + (reRectRequired != null ? reRectRequired : ""));
         }
 
         return rectClosureMapper.updateRectClosure(closure);
