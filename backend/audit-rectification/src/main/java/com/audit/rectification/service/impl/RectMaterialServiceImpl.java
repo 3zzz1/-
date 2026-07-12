@@ -37,7 +37,7 @@ public class RectMaterialServiceImpl implements IRectMaterialService {
         p.setTaskId(material.getTaskId());
         p.setIssueId(material.getIssueId());
         p.setProgressType("MATERIAL_UPLOAD");
-        p.setContent("Upload evidence: " + material.getFileName());
+        p.setContent("上传佐证材料：" + material.getFileName());
         p.setOperatorId(SecurityUtils.getUserId());
         p.setOperatorName(SecurityUtils.getUsername());
         p.setOperateTime(new Date());

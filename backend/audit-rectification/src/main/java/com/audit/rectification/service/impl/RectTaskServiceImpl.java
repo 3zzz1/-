@@ -57,8 +57,8 @@ public class RectTaskServiceImpl implements IRectTaskService {
         task.setDispatchTime(new Date());
         task.setCreateBy(SecurityUtils.getUsername()); task.setCreateTime(new Date());
         int rows = rectTaskMapper.insertRectTask(task);
-        addProgress(task.getTaskId(), null, "DISPATCH", "Task dispatched: " + taskNo);
-        addNotification(task.getTaskId(), "Rectification Task", "New task: " + taskNo);
+        addProgress(task.getTaskId(), null, "DISPATCH", "整改任务已下发，任务编号：" + taskNo);
+        addNotification(task.getTaskId(), "整改任务", "新的整改任务：" + taskNo);
         // 更新关联问题状态: 待下发(0) -> 整改中(1)
         if (dto.getIssueIds() != null) {
             for (Long issueId : dto.getIssueIds()) {
@@ -84,7 +84,7 @@ public class RectTaskServiceImpl implements IRectTaskService {
         RectTask t = new RectTask(); t.setTaskId(taskId); t.setStatus("1");
         t.setConfirmTime(new Date()); t.setUpdateBy(SecurityUtils.getUsername()); t.setUpdateTime(new Date());
         int rows = rectTaskMapper.updateRectTask(t);
-        addProgress(taskId, null, "CONFIRM", "Task confirmed");
+        addProgress(taskId, null, "CONFIRM", "整改任务已确认接收");
         return rows;
     }
 
@@ -93,7 +93,7 @@ public class RectTaskServiceImpl implements IRectTaskService {
         RectTask t = new RectTask(); t.setTaskId(taskId);
         t.setUpdateBy(SecurityUtils.getUsername()); t.setUpdateTime(new Date());
         int rows = rectTaskMapper.updateRectTask(t);
-        addProgress(taskId, null, "ASSIGN", "Assigned to user: " + assignUserId);
+        addProgress(taskId, null, "ASSIGN", "整改任务已分办给责任人，用户ID：" + assignUserId);
         return rows;
     }
 

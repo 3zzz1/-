@@ -67,9 +67,9 @@
     <el-table v-loading="loading" :data="closureList" @selection-change="handleSelectionChange" stripe>
       <el-table-column type="selection" width="50" align="center" />
       <el-table-column label="问题标题" align="center" prop="issueTitle" min-width="200" show-overflow-tooltip />
-      <el-table-column label="申请内容" align="center" prop="description" min-width="240" show-overflow-tooltip>
+      <el-table-column label="销号附言" align="center" prop="description" min-width="240" show-overflow-tooltip>
         <template #default="scope">
-          <span>{{ scope.row.description || scope.row.applyContent || '-' }}</span>
+          <span>{{ closureRemark(scope.row) }}</span>
         </template>
       </el-table-column>
       <el-table-column label="申请人" align="center" prop="applicant" width="100">
@@ -144,10 +144,38 @@
         <el-descriptions-item label="问题标题" label-align="right" min-width="120">
           {{ viewData.issueTitle || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="申请内容" label-align="right">
+        <el-descriptions-item label="销号附言" label-align="right">
           <div style="white-space: pre-wrap; line-height: 1.6; max-height: 200px; overflow-y: auto; background: #f5f7fa; padding: 8px; border-radius: 4px">
-            {{ viewData.description || viewData.applyContent || viewData.content || '-' }}
+            {{ closureRemark(viewData) }}
           </div>
+        </el-descriptions-item>
+        <el-descriptions-item label="整改报告文件" label-align="right">
+          <el-button
+            type="primary"
+            plain
+            size="small"
+            icon="Download"
+            :disabled="!viewData.taskId"
+            @click="downloadReport(viewData)"
+          >
+            下载Word整改报告
+          </el-button>
+        </el-descriptions-item>
+        <el-descriptions-item label="附件材料" label-align="right">
+          <div v-if="viewData.attachments && viewData.attachments.length > 0" class="attachment-actions">
+            <el-button
+              v-for="file in viewData.attachments"
+              :key="file.materialId || file.id"
+              type="primary"
+              plain
+              size="small"
+              icon="Download"
+              @click="downloadAttachment(file)"
+            >
+              {{ file.fileName || file.name || '附件' }}
+            </el-button>
+          </div>
+          <span v-else class="text-muted">暂无附件</span>
         </el-descriptions-item>
         <el-descriptions-item label="申请人" label-align="right">
           {{ viewData.applicant || viewData.applyBy || viewData.createBy || '-' }}
@@ -166,12 +194,12 @@
         <el-descriptions-item label="审核时间" label-align="right">
           {{ viewData.auditTime || viewData.updateTime || '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="审核意见" label-align="right" v-if="viewData.opinion">
+        <el-descriptions-item label="审核意见" label-align="right" v-if="viewData.auditOpinion || viewData.opinion">
           <div style="white-space: pre-wrap; line-height: 1.6">
             {{ viewData.auditOpinion || viewData.opinion || '-' }}
           </div>
         </el-descriptions-item>
-        <el-descriptions-item label="补充整改要求" label-align="right" v-if="viewData.reworkRequirement">
+        <el-descriptions-item label="补充整改要求" label-align="right" v-if="viewData.reRectRequired || viewData.reworkRequirement">
           <div style="white-space: pre-wrap; line-height: 1.6; color: #F56C6C">
             {{ viewData.reRectRequired || viewData.reworkRequirement || '-' }}
           </div>
@@ -200,9 +228,11 @@
 </template>
 
 <script setup name="Closure">
-import { ref, reactive, toRefs } from 'vue'
+import { ref, reactive, toRefs, getCurrentInstance } from 'vue'
+import { saveAs } from 'file-saver'
 import request from '@/utils/request'
 import { listClosure, getClosure } from '@/api/rectification/closure'
+import { downloadReportWord } from '@/api/rectification/report'
 import ClosureApply from './components/ClosureApply.vue'
 import ClosureAudit from './components/ClosureAudit.vue'
 
@@ -279,6 +309,12 @@ function getList() {
           item.auditor = u.nickName || u.userName || ''
         }).catch(() => {}).finally(checkDone)
       } else { checkDone() }
+      if (item.applyUserId) {
+        request({ url: '/system/user/list', method: 'get', params: { userId: item.applyUserId } }).then(r => {
+          const u = ((r.rows || [])[0] || {})
+          item.applicant = u.nickName || u.userName || item.applicant || ''
+        }).catch(() => {})
+      }
     })
     closureList.value = [...list]
   }).catch(() => { loading.value = false })
@@ -319,12 +355,23 @@ function handleView(row) {
         request({ url: '/rectification/issue/' + iid, method: 'get' }).then(r => {
           viewData.value.issueTitle = (r.data || {}).issueTitle || ''
         })
+        request({ url: '/rectification/material/list/' + iid, method: 'get' }).then(r => {
+          viewData.value.attachments = r.rows || []
+        }).catch(() => {
+          viewData.value.attachments = []
+        })
       }
       // 加载审核人姓名
       if (viewData.value.auditUserId) {
         request({ url: '/system/user/list', method: 'get', params: { userId: viewData.value.auditUserId } }).then(r => {
           const u = ((r.rows || [])[0] || {})
           viewData.value.auditor = u.nickName || u.userName || ''
+        })
+      }
+      if (viewData.value.applyUserId) {
+        request({ url: '/system/user/list', method: 'get', params: { userId: viewData.value.applyUserId } }).then(r => {
+          const u = ((r.rows || [])[0] || {})
+          viewData.value.applicant = u.nickName || u.userName || viewData.value.applicant || ''
         })
       }
       viewOpen.value = true
@@ -334,6 +381,53 @@ function handleView(row) {
   }
 }
 
+function downloadAttachment(file) {
+  const mid = file.materialId || file.id
+  if (!mid) {
+    proxy.$modal.msgWarning('材料ID不可用')
+    return
+  }
+  proxy.download('/rectification/material/download/' + mid, {}, file.fileName || file.name || 'download')
+}
+
+function closureRemark(row) {
+  const content = row?.description || row?.applyContent || row?.content || ''
+  if (!content) return '-'
+  return String(content).split('\n\n报告文件：')[0] || '-'
+}
+
+function downloadReport(row) {
+  if (!row?.taskId) {
+    proxy.$modal.msgWarning('任务ID不可用')
+    return
+  }
+  downloadReportWord(row.taskId).then(response => {
+    saveReportBlob(response.data, reportOwnerFileName(row))
+  })
+}
+
+async function saveReportBlob(blob, filename) {
+  if (blob && blob.type === 'application/json') {
+    const text = await blob.text()
+    let data = {}
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      data = {}
+    }
+    proxy.$modal.msgError(data.msg || '下载失败')
+    return
+  }
+  saveAs(new Blob([blob], {
+    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  }), filename)
+}
+
+function reportOwnerFileName(row) {
+  const name = row?.applicant || row?.applyBy || row?.createBy || '整改人'
+  return name + '整改报告.docx'
+}
+
 /** Audit */
 function handleAudit(row) {
   const closureId = row.id || row.closureId
@@ -341,7 +435,7 @@ function handleAudit(row) {
   getClosure(closureId).then(res => {
     const c = res.data || res || row
     c.applicant = c.applyBy || c.createBy || ''
-    c.description = c.applyContent || ''
+    c.description = closureRemark(c)
     const promises = []
     if (c.issueId) {
       promises.push(request({ url: '/rectification/issue/' + c.issueId, method: 'get' }).then(r => {
@@ -349,6 +443,12 @@ function handleAudit(row) {
       }))
       promises.push(request({ url: '/rectification/material/list/' + c.issueId, method: 'get' }).then(r => {
         c.attachments = r.rows || []
+      }))
+    }
+    if (c.applyUserId) {
+      promises.push(request({ url: '/system/user/list', method: 'get', params: { userId: c.applyUserId } }).then(r => {
+        const u = ((r.rows || [])[0] || {})
+        c.applicant = u.nickName || u.userName || c.applicant || ''
       }))
     }
     Promise.all(promises).then(() => {
@@ -378,5 +478,25 @@ getList()
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.content-box {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #f5f7fa;
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.text-muted {
+  color: #c0c4cc;
 }
 </style>

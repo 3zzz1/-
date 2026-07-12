@@ -54,6 +54,15 @@ public class RectClosureController extends BaseController {
     }
 
     /**
+     * 获取任务最新销号申请状态
+     */
+    @PreAuthorize("@ss.hasPermi('rectification:task:myList') or @ss.hasPermi('rectification:closure:list')")
+    @GetMapping(value = "/task/{taskId}/latest")
+    public AjaxResult getLatestByTaskId(@PathVariable Long taskId) {
+        return success(rectClosureService.selectLatestRectClosureByTaskId(taskId));
+    }
+
+    /**
      * 申请销号
      */
     @PreAuthorize("@ss.hasPermi('rectification:closure:apply')")

@@ -32,7 +32,7 @@ public class RectExtensionServiceImpl implements IRectExtensionService {
         p.setTaskId(extension.getTaskId());
         p.setIssueId(extension.getIssueId());
         p.setProgressType("EXTENSION_APPLY");
-        p.setContent("Apply extension: " + extension.getOriginalDeadline() + " -> " + extension.getNewDeadline());
+        p.setContent("申请延期：" + extension.getOriginalDeadline() + " -> " + extension.getNewDeadline());
         p.setOperatorId(SecurityUtils.getUserId());
         p.setOperatorName(SecurityUtils.getUsername());
         p.setOperateTime(new Date());
@@ -54,7 +54,7 @@ public class RectExtensionServiceImpl implements IRectExtensionService {
         int result = rectExtensionMapper.updateRectExtension(extension);
         RectProgress p = new RectProgress();
         p.setProgressType("1".equals(status) ? "EXTENSION_APPROVE" : "EXTENSION_REJECT");
-        p.setContent("1".equals(status) ? "Extension approved" : "Extension rejected: " + (opinion != null ? opinion : ""));
+        p.setContent("1".equals(status) ? "延期申请已审批通过" : "延期申请已驳回，审批意见：" + (opinion != null ? opinion : ""));
         p.setOperatorId(SecurityUtils.getUserId());
         p.setOperatorName(SecurityUtils.getUsername());
         p.setOperateTime(new Date());

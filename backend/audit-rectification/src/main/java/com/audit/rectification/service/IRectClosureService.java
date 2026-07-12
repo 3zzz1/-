@@ -28,6 +28,14 @@ public interface IRectClosureService {
     RectClosure selectRectClosureById(Long closureId);
 
     /**
+     * 按任务ID查询最新销号申请
+     *
+     * @param taskId 任务ID
+     * @return 最新销号申请
+     */
+    RectClosure selectLatestRectClosureByTaskId(Long taskId);
+
+    /**
      * 申请销号
      *
      * @param issueId 问题ID

@@ -87,7 +87,7 @@ public class RectTaskController extends BaseController {
     /**
      * 确认整改任务
      */
-    @PreAuthorize("@ss.hasPermi('rectification:task:confirm')")
+    @PreAuthorize("@ss.hasRole('audited_unit_liaison') and @ss.hasPermi('rectification:task:confirm')")
     @PutMapping("/confirm/{taskId}")
     public AjaxResult confirm(@PathVariable Long taskId) {
         return toAjax(rectTaskService.confirmTask(taskId));
@@ -96,7 +96,7 @@ public class RectTaskController extends BaseController {
     /**
      * 指派整改任务
      */
-    @PreAuthorize("@ss.hasPermi('rectification:task:assign')")
+    @PreAuthorize("@ss.hasRole('audited_unit_liaison') and @ss.hasPermi('rectification:task:assign')")
     @PutMapping("/assign/{taskId}")
     public AjaxResult assign(@PathVariable Long taskId, @RequestBody Map<String, Long> params) {
         Long assigneeId = params.get("assigneeId");

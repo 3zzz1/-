@@ -35,7 +35,7 @@
               </div>
 
               <div class="timeline-item-content">
-                <p>{{ item.content || item.description || '-' }}</p>
+                <p>{{ formatProgressContent(item.content || item.description) }}</p>
               </div>
 
               <div class="timeline-item-footer">
@@ -253,6 +253,39 @@ function getTimelineType(type) {
 
 function getTimelineIcon(type) {
   return timelineIcons[type] || 'MoreFilled'
+}
+
+function formatProgressContent(content) {
+  if (!content) return '-'
+  const text = String(content)
+  const exactMap = {
+    'Task confirmed': '整改任务已确认接收',
+    'Submit rectification plan': '整改方案已提交',
+    'Update rectification plan': '整改方案已修改并重新提交',
+    'Submit rectification report': '整改报告已提交，待单位负责人审批',
+    'Leader approved': '单位负责人已审批通过整改报告',
+    'Extension approved': '延期申请已审批通过'
+  }
+  if (exactMap[text]) return exactMap[text]
+  if (text.startsWith('Task dispatched: ')) {
+    return '整改任务已下发，任务编号：' + text.replace('Task dispatched: ', '')
+  }
+  if (text.startsWith('Assigned to user: ')) {
+    return '整改任务已分办给责任人，用户ID：' + text.replace('Assigned to user: ', '')
+  }
+  if (text.startsWith('Upload evidence: ')) {
+    return '上传佐证材料：' + text.replace('Upload evidence: ', '')
+  }
+  if (text.startsWith('Apply extension: ')) {
+    return '申请延期：' + text.replace('Apply extension: ', '')
+  }
+  if (text.startsWith('Extension rejected: ')) {
+    return '延期申请已驳回，审批意见：' + text.replace('Extension rejected: ', '')
+  }
+  if (text.startsWith('Leader rejected: ')) {
+    return '单位负责人已驳回整改报告，驳回原因：' + text.replace('Leader rejected: ', '')
+  }
+  return text
 }
 
 function loadProgress() {

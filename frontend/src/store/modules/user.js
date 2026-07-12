@@ -44,7 +44,7 @@ const useUserStore = defineStore(
               this.roles = ['ROLE_DEFAULT']
             }
             this.id = user.userId
-            this.name = user.userName
+            this.name = user.nickName || user.userName
             this.avatar = avatar
             resolve(res)
           }).catch(error => {

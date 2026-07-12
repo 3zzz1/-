@@ -28,6 +28,14 @@ public interface RectClosureMapper {
     public RectClosure selectRectClosureById(Long closureId);
 
     /**
+     * 按任务ID查询最新销号申请
+     *
+     * @param taskId 任务ID
+     * @return 最新销号申请
+     */
+    public RectClosure selectLatestRectClosureByTaskId(Long taskId);
+
+    /**
      * 按问题ID查询销号申请
      *
      * @param issueId 问题ID

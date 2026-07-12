@@ -11,6 +11,38 @@
         </div>
       </template>
 
+      <el-alert
+        v-if="closureRejectRequirement"
+        type="error"
+        show-icon
+        :closable="false"
+        class="reject-alert"
+      >
+        <template #title>
+          销号申请已被审计处驳回，请根据补充整改要求修改整改方案后重新提交报告
+        </template>
+        <div class="reject-requirement">
+          <div class="requirement-label">补充整改要求</div>
+          <div class="requirement-content">{{ closureRejectRequirement }}</div>
+        </div>
+      </el-alert>
+
+      <el-alert
+        v-if="reportRejectOpinion"
+        type="error"
+        show-icon
+        :closable="false"
+        class="reject-alert"
+      >
+        <template #title>
+          整改报告已被单位负责人驳回，请根据驳回原因修改整改方案后重新提交报告
+        </template>
+        <div class="reject-requirement">
+          <div class="requirement-label">驳回原因</div>
+          <div class="requirement-content">{{ reportRejectOpinion }}</div>
+        </div>
+      </el-alert>
+
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" size="default">
         <el-form-item label="方案内容" prop="planContent">
           <div class="editor-wrapper">
@@ -49,6 +81,28 @@
         </el-form-item>
       </el-form>
 
+      <div v-if="rejectRecords.length > 0" class="reject-records">
+        <el-divider content-position="left">历史驳回记录</el-divider>
+        <el-timeline>
+          <el-timeline-item
+            v-for="item in rejectRecords"
+            :key="item.progressId || item.id"
+            :timestamp="item.operateTime || item.createTime || '-'"
+            type="danger"
+            color="#F56C6C"
+            placement="top"
+          >
+            <div class="record-card">
+              <div class="record-header">
+                <el-tag type="danger" size="small">{{ rejectTypeLabel(item.progressType) }}</el-tag>
+                <span class="record-operator">{{ item.operatorName || item.createBy || '系统' }}</span>
+              </div>
+              <div class="record-content">{{ item.content || '-' }}</div>
+            </div>
+          </el-timeline-item>
+        </el-timeline>
+      </div>
+
       <!-- 方案状态信息 -->
       <div v-if="planInfo.updateTime" class="plan-meta">
         <el-divider />
@@ -57,7 +111,8 @@
           <el-descriptions-item label="创建时间">{{ planInfo.createTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="最后更新">{{ planInfo.updateTime || '-' }}</el-descriptions-item>
           <el-descriptions-item label="方案状态">
-            <el-tag v-if="planInfo.status === '0'" type="info" size="small">草稿</el-tag>
+            <el-tag v-if="isPlanRejected" type="danger" size="small">已驳回</el-tag>
+            <el-tag v-else-if="planInfo.status === '0'" type="info" size="small">草稿</el-tag>
             <el-tag v-else-if="planInfo.status === '1'" type="warning" size="small">已提交</el-tag>
             <el-tag v-else-if="planInfo.status === '2'" type="success" size="small">已通过</el-tag>
             <el-tag v-else-if="planInfo.status === '3'" type="danger" size="small">已驳回</el-tag>
@@ -70,8 +125,9 @@
 </template>
 
 <script setup name="PlanEditor">
-import { ref, reactive, onMounted, watch, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import { getPlan, addPlan, updatePlan } from '@/api/rectification/plan'
+import { getReport } from '@/api/rectification/report'
 import request from '@/utils/request'
 const props = defineProps({
   taskId: { type: Number, required: true }
@@ -83,6 +139,11 @@ const loading = ref(false)
 const submitLoading = ref(false)
 const draftLoading = ref(false)
 const assignedUserName = ref('')
+const reportApproveStatus = ref('')
+const reportApproveTime = ref('')
+const reportApproveOpinion = ref('')
+const closureInfo = ref({})
+const rejectRecords = ref([])
 
 const form = reactive({
   taskId: props.taskId,
@@ -98,6 +159,24 @@ const planInfo = reactive({
   createBy: '',
   createTime: '',
   updateTime: ''
+})
+
+const isPlanRejected = computed(() => {
+  if (closureInfo.value.status === '2') return true
+  if (reportApproveStatus.value !== '2') return false
+  const planChangeTime = planInfo.updateTime || planInfo.createTime
+  if (!reportApproveTime.value || !planChangeTime) return true
+  return new Date(planChangeTime).getTime() <= new Date(reportApproveTime.value).getTime()
+})
+
+const closureRejectRequirement = computed(() => {
+  if (closureInfo.value.status !== '2') return ''
+  return closureInfo.value.reRectRequired || ''
+})
+
+const reportRejectOpinion = computed(() => {
+  if (reportApproveStatus.value !== '2') return ''
+  return reportApproveOpinion.value || ''
 })
 
 const rules = reactive({
@@ -154,6 +233,23 @@ watch(() => props.taskId, () => {
 function loadPlan() {
   if (!props.taskId) return
   loading.value = true
+  reportApproveStatus.value = ''
+  reportApproveTime.value = ''
+  reportApproveOpinion.value = ''
+  closureInfo.value = {}
+  rejectRecords.value = []
+  getReport(props.taskId).then(res => {
+    const report = res.data || {}
+    reportApproveStatus.value = report.unitApproveStatus || ''
+    reportApproveTime.value = report.unitApproveTime || report.updateTime || ''
+    reportApproveOpinion.value = report.unitApproveOpinion || ''
+  }).catch(() => {})
+  request({ url: '/rectification/closure/task/' + props.taskId + '/latest', method: 'get' }).then(res => {
+    closureInfo.value = res.data || {}
+  }).catch(() => {
+    closureInfo.value = {}
+  })
+  loadRejectRecords()
   getPlan(props.taskId)
     .then((response) => {
       const data = response.data
@@ -177,6 +273,33 @@ function loadPlan() {
     .finally(() => {
       loading.value = false
     })
+}
+
+function loadRejectRecords() {
+  request({ url: '/rectification/progress/' + props.taskId, method: 'get' }).then(res => {
+    const rows = Array.isArray(res.data) ? res.data : (res.rows || res.data?.rows || res.data?.records || [])
+    rejectRecords.value = rows.filter(item => isRejectProgress(item.progressType))
+  }).catch(() => {
+    rejectRecords.value = []
+  })
+}
+
+function isRejectProgress(type) {
+  return ['LEADER_REJECT', 'leader_reject', 'CLOSURE_REJECTED', 'closure_rejected', 'PLAN_REJECT', 'plan_reject', 'REJECT', 'reject'].includes(type)
+}
+
+function rejectTypeLabel(type) {
+  const map = {
+    LEADER_REJECT: '单位负责人驳回报告',
+    leader_reject: '单位负责人驳回报告',
+    CLOSURE_REJECTED: '审计处驳回销号',
+    closure_rejected: '审计处驳回销号',
+    PLAN_REJECT: '方案驳回',
+    plan_reject: '方案驳回',
+    REJECT: '驳回',
+    reject: '驳回'
+  }
+  return map[type] || '驳回'
 }
 
 // Save as draft
@@ -287,6 +410,60 @@ async function handleSubmit() {
     :deep(.ql-container) {
       border-radius: 0 0 4px 4px;
       border-color: #dcdfe6;
+    }
+  }
+
+  .reject-alert {
+    margin-bottom: 16px;
+
+    .reject-requirement {
+      margin-top: 8px;
+      line-height: 1.7;
+    }
+
+    .requirement-label {
+      font-weight: 600;
+      color: #303133;
+      margin-bottom: 4px;
+    }
+
+    .requirement-content {
+      white-space: pre-wrap;
+      color: #606266;
+    }
+  }
+
+  .reject-records {
+    margin-top: 8px;
+
+    :deep(.el-timeline) {
+      padding-left: 20px;
+    }
+
+    .record-card {
+      border: 1px solid #f5c2c7;
+      background: #fff8f8;
+      border-radius: 4px;
+      padding: 10px 12px;
+    }
+
+    .record-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .record-operator {
+      font-size: 12px;
+      color: #909399;
+    }
+
+    .record-content {
+      color: #303133;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   }
 

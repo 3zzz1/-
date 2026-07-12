@@ -1,7 +1,6 @@
-<template>
+﻿<template>
   <div class="app-container">
-    <!-- Search Form -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
+    <el-form v-show="showSearch" ref="queryRef" :model="queryParams" :inline="true">
       <el-form-item label="任务编号" prop="taskNo">
         <el-input
           v-model="queryParams.taskNo"
@@ -34,9 +33,8 @@
       </el-form-item>
     </el-form>
 
-    <!-- Stats Cards -->
     <el-row :gutter="20" class="mb8">
-      <el-col :span="6" v-for="card in statCards" :key="card.status">
+      <el-col v-for="card in statCards" :key="card.status" :span="6">
         <el-card shadow="hover" class="stat-card" :class="card.cardClass">
           <div class="stat-card-content">
             <div class="stat-card-left">
@@ -51,53 +49,132 @@
       </el-col>
     </el-row>
 
-    <!-- Table -->
     <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
-      <el-table-column label="任务编号" align="center" prop="taskNo" width="140" />
-      <el-table-column label="联系人" align="center" prop="contactPerson" width="90" />
-      <el-table-column label="截止日期" align="center" prop="deadline" width="110">
+      <el-table-column label="任务编号" align="center" prop="taskNo" width="150" />
+      <el-table-column label="联系人" align="center" prop="contactPerson" width="100" />
+      <el-table-column label="截止日期" align="center" prop="deadline" width="130">
         <template #default="scope">
           <span :style="{ color: isOverdue(scope.row.deadline) ? '#f56c6c' : '' }">
-            {{ scope.row.deadline }}
+            {{ scope.row.deadline || '-' }}
             <el-tag v-if="isOverdue(scope.row.deadline)" type="danger" size="small" class="ml5">逾期</el-tag>
             <el-tag v-else-if="isNearDeadline(scope.row.deadline)" type="warning" size="small" class="ml5">临期</el-tag>
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" align="center" prop="status" width="100">
+      <el-table-column label="任务状态" align="center" prop="status" width="110">
         <template #default="scope">
           <el-tag :type="taskStatusTag(scope.row.status)">
             {{ taskStatusLabel(scope.row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="下发时间" align="center" prop="dispatchTime" width="160" />
-      <el-table-column label="审批状态" align="center" width="100" v-if="isUnitLeader">
+      <el-table-column label="单位审批" align="center" width="110">
         <template #default="scope">
-          <el-tag v-if="scope.row.approStatus === '1'" type="warning">待审批</el-tag>
-          <el-tag v-else-if="scope.row.approStatus === '2'" type="success">已通过</el-tag>
-          <el-tag v-else-if="scope.row.approStatus === '3'" type="danger">已驳回</el-tag>
+          <el-tag v-if="scope.row.approStatus === '0'" type="warning">待审批</el-tag>
+          <el-tag v-else-if="scope.row.approStatus === '1'" type="success">已通过</el-tag>
+          <el-tag v-else-if="scope.row.approStatus === '2'" type="danger">已驳回</el-tag>
           <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="确认" align="center" width="100">
+      <el-table-column label="销号状态" align="center" width="140">
         <template #default="scope">
-          <el-button link type="primary" icon="Check" @click="handleConfirm(scope.row)" v-if="scope.row.status === '0'" v-hasPermi="['rectification:task:confirm']">确认接收</el-button>
-          <el-tag type="success" v-else-if="scope.row.status !== '0'">已确认</el-tag>
+          <el-tooltip
+            v-if="scope.row.closureStatus === '2' && scope.row.reRectRequired"
+            :content="scope.row.reRectRequired"
+            placement="top"
+          >
+            <el-tag type="danger">已驳回</el-tag>
+          </el-tooltip>
+          <el-tag v-else-if="scope.row.closureStatus === '0'" type="warning">待审核</el-tag>
+          <el-tag v-else-if="scope.row.closureStatus === '1'" type="success">已销号</el-tag>
+          <el-tag v-else-if="scope.row.closureStatus === '2'" type="danger">已驳回</el-tag>
+          <span v-else>-</span>
         </template>
       </el-table-column>
-      <el-table-column label="分办" align="center" width="120" v-if="!isUnitLeader">
+      <el-table-column label="下发时间" align="center" prop="dispatchTime" min-width="160" />
+      <el-table-column v-if="isLiaison" label="确认" align="center" width="110">
         <template #default="scope">
-          <el-button link type="primary" icon="User" @click="handleAssign(scope.row)" v-if="scope.row.status === '1'" v-hasPermi="['rectification:task:assign']">分办责任人</el-button>
+          <el-button
+            v-if="scope.row.status === '0'"
+            v-hasPermi="['rectification:task:confirm']"
+            link
+            type="primary"
+            icon="Check"
+            @click="handleConfirm(scope.row)"
+          >
+            确认接收
+          </el-button>
+          <el-tag v-else type="success">已确认</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="执行操作" align="center" width="200">
+      <el-table-column v-if="isLiaison" label="分办" align="center" width="130">
         <template #default="scope">
-          <el-button link type="primary" icon="View" @click="handleDetail(scope.row)" v-if="!isUnitLeader">详情</el-button>
-          <el-button link type="primary" icon="Edit" @click="handleEditPlan(scope.row)" v-if="['1'].includes(scope.row.status)" v-hasPermi="['rectification:plan:edit']">方案</el-button>
-          <el-button link type="danger" icon="CircleCheck" @click="handleApplyClosure(scope.row)" v-if="['1','2'].includes(scope.row.status)" v-hasPermi="['rectification:closure:apply']">销号</el-button>
-          <el-button link type="warning" icon="Checked" @click="handleGoApproval(scope.row)" v-if="['1','2','3'].includes(scope.row.status)" v-hasPermi="['rectification:report:approve']">审批</el-button>
+          <el-button
+            v-if="scope.row.status === '1'"
+            v-hasPermi="['rectification:task:assign']"
+            link
+            type="primary"
+            icon="User"
+            @click="handleAssign(scope.row)"
+          >
+            分办责任人
+          </el-button>
+        </template>
+      </el-table-column>
+      <el-table-column label="执行操作" align="center" width="260" fixed="right">
+        <template #default="scope">
+          <el-button v-if="!isUnitLeader" link type="primary" icon="View" @click="handleDetail(scope.row)">详情</el-button>
+          <el-button
+            v-if="!isLiaison && ['1', '2'].includes(scope.row.status)"
+            v-hasPermi="['rectification:plan:edit']"
+            link
+            type="primary"
+            icon="Edit"
+            @click="handleEditPlan(scope.row)"
+          >
+            方案
+          </el-button>
+          <el-button
+            v-if="!isLiaison && canModifyReport(scope.row)"
+            v-hasPermi="['rectification:report:add']"
+            link
+            type="warning"
+            icon="DocumentChecked"
+            @click="handleSubmitReport(scope.row)"
+          >
+            修改报告
+          </el-button>
+          <el-button
+            v-else-if="!isLiaison && ['1', '2'].includes(scope.row.status)"
+            v-hasPermi="['rectification:report:submit']"
+            link
+            type="primary"
+            icon="Document"
+            @click="handleSubmitReport(scope.row)"
+          >
+            报告
+          </el-button>
+          <el-button
+            v-if="!isLiaison && canApplyClosure(scope.row)"
+            v-hasPermi="['rectification:closure:apply']"
+            link
+            type="danger"
+            icon="CircleCheck"
+            @click="handleApplyClosure(scope.row)"
+          >
+            销号
+          </el-button>
+          <el-button
+            v-if="['1', '2', '3'].includes(scope.row.status)"
+            v-hasPermi="['rectification:report:approve']"
+            link
+            type="warning"
+            icon="Checked"
+            @click="handleGoApproval(scope.row)"
+          >
+            审批
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -110,52 +187,74 @@
       @pagination="getList"
     />
 
-    <!-- 确认接收 Dialog -->
     <el-dialog title="确认接收任务" v-model="confirmOpen" width="500px" append-to-body>
-      <div class="confirm-dialog-body">
-        <el-alert
-          title="确认接收后将正式开始整改工作，系统开始计时"
-          type="warning"
-          :closable="false"
-          show-icon
-          class="mb15"
-        />
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="任务编号">{{ currentTask.taskNo }}</el-descriptions-item>
-          <el-descriptions-item label="关联问题">{{ currentTask.issueTitle }}</el-descriptions-item>
-          <el-descriptions-item label="截止日期">{{ currentTask.deadline }}</el-descriptions-item>
-        </el-descriptions>
-      </div>
+      <el-alert
+        title="确认接收后将正式开始整改工作，系统开始计时。"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="mb15"
+      />
+      <el-descriptions :column="1" border>
+        <el-descriptions-item label="任务编号">{{ currentTask.taskNo }}</el-descriptions-item>
+        <el-descriptions-item label="关联问题">{{ currentTask.issueTitle || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="截止日期">{{ currentTask.deadline || '-' }}</el-descriptions-item>
+      </el-descriptions>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitConfirm" :loading="submitLoading">确认接收</el-button>
-          <el-button @click="confirmOpen = false">取 消</el-button>
-        </div>
+        <el-button type="primary" :loading="submitLoading" @click="submitConfirm">确认接收</el-button>
+        <el-button @click="confirmOpen = false">取消</el-button>
       </template>
     </el-dialog>
 
-    <!-- 申请销号 Dialog -->
     <el-dialog title="申请销号" v-model="closureOpen" width="700px" append-to-body>
-      <div v-if="closureLoading" style="text-align:center;padding:20px">正在生成整改报告...</div>
-      <template v-else>
-        <h4 style="margin:0 0 5px">系统自动生成的整改报告预览</h4>
-        <div style="max-height:280px;overflow-y:auto;background:#f5f7fa;padding:12px;border-radius:4px;white-space:pre-wrap;font-size:13px;margin-bottom:15px">{{ closureReportContent }}</div>
+      <div v-show="closureLoading" class="loading-box">正在生成整改报告...</div>
+      <div v-show="!closureLoading">
+        <h4 class="preview-title">整改报告文件</h4>
+        <div class="closure-file-row">
+          <el-button type="primary" plain icon="Download" @click="downloadClosureReport">
+            下载Word整改报告
+          </el-button>
+        </div>
+        <h4 class="preview-title">佐证附件材料</h4>
+        <div v-if="closureMaterials.length > 0" class="closure-file-list">
+          <el-button
+            v-for="m in closureMaterials"
+            :key="m.materialId || m.id"
+            type="primary"
+            plain
+            size="small"
+            icon="Download"
+            @click="downloadClosureMaterial(m)"
+          >
+            {{ m.fileName || '附件' }}
+          </el-button>
+        </div>
+        <el-alert v-else title="暂无佐证附件，请先在任务详情中上传整改材料附件" type="warning" :closable="false" show-icon class="mb15" />
         <el-form ref="closureFormRef" :model="closureForm" label-width="100px">
           <el-form-item label="销号附言">
-            <el-input v-model="closureForm.remark" type="textarea" :rows="2" placeholder="选填，补充说明" maxlength="300" show-word-limit />
+            <el-input
+              v-model="closureForm.remark"
+              type="textarea"
+              :rows="2"
+              placeholder="选填，补充说明"
+              maxlength="300"
+              show-word-limit
+            />
           </el-form-item>
           <el-form-item>
-            <el-checkbox v-model="closureForm.agreed" style="white-space:normal;line-height:1.6">本人承诺，本次提交的所有整改材料及佐证附件均真实、准确、有效。若存在弄虚作假，愿承担相应责任。</el-checkbox>
+            <el-checkbox v-model="closureForm.agreed" class="agreement-text">
+              本人承诺，本次提交的所有整改材料及佐证附件均真实、准确、有效。
+            </el-checkbox>
           </el-form-item>
         </el-form>
-      </template>
+      </div>
       <template #footer>
-        <el-button type="primary" @click="submitClosure" :loading="submitLoading" :disabled="!closureForm.agreed">确认销号</el-button>
-        <el-button @click="closureOpen = false">取 消</el-button>
+        <el-button type="primary" :loading="submitLoading" :disabled="!closureForm.agreed" @click="submitClosure">确认销号</el-button>
+        <el-button @click="closureOpen = false">取消</el-button>
       </template>
     </el-dialog>
 
-    <!-- 申请延期 Dialog -->
+
     <el-dialog title="申请延期" v-model="extensionOpen" width="500px" append-to-body>
       <el-form ref="extensionFormRef" :model="extensionForm" :rules="extensionRules" label-width="100px">
         <el-form-item label="任务编号">
@@ -178,38 +277,47 @@
         </el-form-item>
       </el-form>
       <template #footer>
-        <div class="dialog-footer">
-          <el-button type="primary" @click="submitExtension" :loading="submitLoading">提交申请</el-button>
-          <el-button @click="extensionOpen = false">取 消</el-button>
-        </div>
+        <el-button type="primary" :loading="submitLoading" @click="submitExtension">提交申请</el-button>
+        <el-button @click="extensionOpen = false">取消</el-button>
       </template>
     </el-dialog>
 
-    <!-- 分办责任人 Dialog -->
     <AssignDialog v-model="assignOpen" :task-id="assignTaskId" @success="onAssignSuccess" />
-
-    <!-- 审批报告 Dialog -->
-    <LeaderApproval v-model="approOpen" :report-id="approReportId" :content="approContent" :materials="approMaterials" @success="getList" />
+    <LeaderApproval
+      v-model="approOpen"
+      :report-id="approReportId"
+      :task-id="approTaskId"
+      :content="approContent"
+      :report="approReport"
+      :materials="approMaterials"
+      @success="getList"
+    />
   </div>
 </template>
 
 <script setup name="MyTasks">
-import { ref, reactive, toRefs, computed, onMounted } from 'vue'
+import { ref, reactive, toRefs, computed, onMounted, getCurrentInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { listMyTask, confirmTask, getTask } from '@/api/rectification/task'
 import { applyClosure } from '@/api/rectification/closure'
 import { applyExtension } from '@/api/rectification/plan'
+import { downloadReportWord } from '@/api/rectification/report'
+import { downloadMaterial } from '@/api/rectification/material'
 import request from '@/utils/request'
 import useUserStore from '@/store/modules/user'
 import AssignDialog from './components/AssignDialog.vue'
 import LeaderApproval from '../report/LeaderApproval.vue'
+import { saveAs } from 'file-saver'
 
 const router = useRouter()
+const { proxy } = getCurrentInstance()
+const userStore = useUserStore()
+
 const isUnitLeader = computed(() => {
-  const perms = useUserStore().permissions
+  const perms = userStore.permissions || []
   return perms.includes('rectification:report:approve') && !perms.includes('rectification:plan:edit')
 })
-const { proxy } = getCurrentInstance()
+const isLiaison = computed(() => (userStore.roles || []).includes('audited_unit_liaison'))
 
 const taskList = ref([])
 const loading = ref(true)
@@ -221,6 +329,15 @@ const closureOpen = ref(false)
 const extensionOpen = ref(false)
 const submitLoading = ref(false)
 const currentTask = ref({})
+
+const assignTaskId = ref(null)
+const assignOpen = ref(false)
+const approOpen = ref(false)
+const approReportId = ref(0)
+const approTaskId = ref(null)
+const approContent = ref('')
+const approReport = ref({})
+const approMaterials = ref([])
 
 const data = reactive({
   queryParams: {
@@ -241,6 +358,8 @@ const closureForm = reactive({
   agreed: false
 })
 const closureReportContent = ref('')
+const closureMaterials = ref([])
+const closureResponsibleName = ref('')
 const closureLoading = ref(false)
 
 const extensionForm = reactive({
@@ -262,13 +381,6 @@ const taskStatusOptions = ref([
   { label: '已完成', value: '4' }
 ])
 
-const sourceTypeOptions = ref([
-  { label: '内源审计', value: 'inner' },
-  { label: '外源巡视巡察', value: 'inspection' },
-  { label: '外部督查', value: 'supervision' }
-])
-
-// 统计卡片
 const statCards = computed(() => {
   const all = taskList.value
   return [
@@ -279,27 +391,21 @@ const statCards = computed(() => {
   ]
 })
 
-// 辅助函数
 function taskStatusLabel(val) {
   const item = taskStatusOptions.value.find(d => d.value === val)
-  return item ? item.label : val
+  return item ? item.label : (val || '-')
 }
+
 function taskStatusTag(val) {
   const map = { '0': 'info', '1': 'warning', '2': 'primary', '3': '', '4': 'success' }
   return map[val] || ''
 }
-function sourceTypeLabel(val) {
-  const item = sourceTypeOptions.value.find(d => d.value === val)
-  return item ? item.label : val
-}
-function sourceTypeTag(val) {
-  const map = { inner: '', inspection: 'warning', supervision: 'danger' }
-  return map[val] || ''
-}
+
 function isOverdue(deadline) {
   if (!deadline) return false
   return new Date(deadline) < new Date()
 }
+
 function isNearDeadline(deadline) {
   if (!deadline) return false
   const now = new Date()
@@ -308,55 +414,118 @@ function isNearDeadline(deadline) {
   return diff > 0 && diff < 7 * 24 * 60 * 60 * 1000
 }
 
-/** 查询我的任务列表 */
+function canApplyClosure(row) {
+  const reportApprovedAfterClosureReject = String(row.closureStatus) !== '2'
+    || isAfter(row.reportApproveTime, row.closureAuditTime || row.closureUpdateTime || row.closureCreateTime)
+  return row.reportChecked === true
+    && row.reportId
+    && ['1', '2'].includes(String(row.status))
+    && String(row.approStatus) === '1'
+    && String(row.reportStatus) === '2'
+    && String(row.closureStatus) !== '0'
+    && reportApprovedAfterClosureReject
+}
+
+function canModifyReport(row) {
+  return String(row.approStatus) === '2' || isClosureRejectPending(row)
+}
+
+function isClosureRejectPending(row) {
+  if (String(row.closureStatus) !== '2') return false
+  return !isAfter(row.reportSubmitTime || row.reportUpdateTime, row.closureAuditTime || row.closureUpdateTime || row.closureCreateTime)
+}
+
+function isAfter(left, right) {
+  if (!right) return true
+  if (!left) return false
+  const leftTime = new Date(left).getTime()
+  const rightTime = new Date(right).getTime()
+  return Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime > rightTime
+}
+
+function parseFirstIssueId(issueIds) {
+  try {
+    const parsed = JSON.parse((issueIds || '[0]').replace(/'/g, '"'))
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed[0] : 0
+  } catch (e) {
+    return 0
+  }
+}
+
 function getList() {
   loading.value = true
   listMyTask(queryParams.value).then(response => {
     const tasks = response.rows || []
-    total.value = response.total
-    if (tasks.length === 0) { taskList.value = []; loading.value = false; return }
-    // 加载每个任务的报告审核状态，完成后再显示
-    let loaded = 0
-    tasks.forEach((t, i) => {
+    total.value = response.total || 0
+    if (tasks.length === 0) {
+      taskList.value = []
+      return
+    }
+    return Promise.all(tasks.map(t => {
       t.approStatus = null
-      request({ url: '/rectification/report/' + t.taskId, method: 'get' }).then(r => {
+      t.reportStatus = null
+      t.reportId = null
+      t.reportChecked = false
+      t.reportApproveTime = null
+      t.reportSubmitTime = null
+      t.reportUpdateTime = null
+      t.closureStatus = null
+      t.closureId = null
+      t.closureAuditTime = null
+      t.closureUpdateTime = null
+      t.closureCreateTime = null
+      t.reRectRequired = ''
+      const reportReq = request({ url: '/rectification/report/' + t.taskId, method: 'get' }).then(r => {
         const rpt = r.data || {}
-        t.approStatus = rpt.unitApproveStatus || (rpt.status === '2' ? '2' : rpt.status === '1' ? '1' : null)
-      }).catch(() => {}).finally(() => {
-        loaded++
-        if (loaded >= tasks.length) { taskList.value = [...tasks]; loading.value = false }
-      })
+        t.approStatus = rpt.unitApproveStatus || null
+        t.reportStatus = rpt.status || null
+        t.reportId = rpt.reportId || null
+        t.reportApproveTime = rpt.unitApproveTime || null
+        t.reportSubmitTime = rpt.submitTime || null
+        t.reportUpdateTime = rpt.updateTime || null
+        t.reportChecked = true
+      }).catch(() => {})
+      const closureReq = request({ url: '/rectification/closure/task/' + t.taskId + '/latest', method: 'get' }).then(r => {
+        const closure = r.data || {}
+        t.closureStatus = closure.status || null
+        t.closureId = closure.closureId || null
+        t.closureAuditTime = closure.auditTime || null
+        t.closureUpdateTime = closure.updateTime || null
+        t.closureCreateTime = closure.createTime || null
+        t.reRectRequired = closure.reRectRequired || ''
+      }).catch(() => {})
+      return Promise.all([reportReq, closureReq])
+    })).then(() => {
+      taskList.value = [...tasks]
     })
-    taskList.value = [...tasks]
+  }).finally(() => {
+    loading.value = false
   })
 }
 
-/** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1
   getList()
 }
 
-/** 重置按钮操作 */
 function resetQuery() {
   proxy.resetForm('queryRef')
   handleQuery()
 }
 
-/** 多选框选中数据 */
 function handleSelectionChange(selection) {
   ids.value = selection.map(item => item.taskId)
 }
 
-/** 确认接收 */
-const assignTaskId = ref(null)
-const assignOpen = ref(false)
-const approOpen = ref(false)
-const approReportId = ref(0)
-const approContent = ref('')
-const approMaterials = ref([])
-function handleAssign(row) { assignTaskId.value = row.taskId; assignOpen.value = true }
-function onAssignSuccess() { assignOpen.value = false; getList() }
+function handleAssign(row) {
+  assignTaskId.value = row.taskId
+  assignOpen.value = true
+}
+
+function onAssignSuccess() {
+  assignOpen.value = false
+  getList()
+}
 
 function handleConfirm(row) {
   currentTask.value = row
@@ -366,7 +535,6 @@ function handleConfirm(row) {
 function submitConfirm() {
   submitLoading.value = true
   confirmTask(currentTask.value.taskId).then(() => {
-    currentTask.value.status = '1'
     proxy.$modal.msgSuccess('任务已确认接收')
     confirmOpen.value = false
     getList()
@@ -375,19 +543,19 @@ function submitConfirm() {
   })
 }
 
-/** 编制方案 - 跳转任务详情页 */
 function handleGoApproval(row) {
   getTask(row.taskId).then(res => {
-    const t = res.data || {}
-    let iid = 0
-    try { iid = JSON.parse((t.issueIds||'[0]').replace(/'/g,'"'))[0] } catch(e) {}
-    const rptReq = request({ url: '/rectification/report/' + row.taskId, method: 'get' })
-    const matReq = request({ url: '/rectification/material/list/' + iid, method: 'get' })
-    Promise.all([rptReq, matReq]).then(([rptRes, matRes]) => {
-      const rpt = rptRes.data || {}
-      approReportId.value = rpt.reportId || 0
-      approContent.value = rpt.reportContent || ''
-      approMaterials.value = matRes.rows || []
+    const task = res.data || {}
+    const issueId = parseFirstIssueId(task.issueIds)
+    const reportReq = request({ url: '/rectification/report/' + row.taskId, method: 'get' })
+    const materialReq = request({ url: '/rectification/material/list/' + issueId, method: 'get' })
+    Promise.all([reportReq, materialReq]).then(([reportRes, materialRes]) => {
+      const report = reportRes.data || {}
+      approReportId.value = report.reportId || 0
+      approTaskId.value = row.taskId
+      approContent.value = report.reportContent || ''
+      approReport.value = report
+      approMaterials.value = materialRes.rows || []
       approOpen.value = true
     })
   })
@@ -396,107 +564,159 @@ function handleGoApproval(row) {
 function handleDetail(row) {
   router.push('/rectification/task-page/detail/' + row.taskId)
 }
-function handleGenerateReport(row) {
-  proxy.$modal.confirm('系统将根据方案内容和佐证材料自动生成整改报告并提交审批，确认？').then(() => {
-    getTask(row.taskId).then(res => {
-      const t = res.data || {}
-      let issueId = 0
-      try { issueId = JSON.parse((t.issueIds||'[0]').replace(/'/g,'"'))[0] } catch(e) {}
-      const planReq = request({ url: '/rectification/plan/' + row.taskId, method: 'get' })
-      const matReq = request({ url: '/rectification/material/list/' + issueId, method: 'get' })
-      Promise.all([planReq, matReq]).then(([planRes, matRes]) => {
-        const plan = planRes.data || {}
-        const mats = matRes.rows || []
-        const content = '【整改报告】\n\n一、整改方案\n' + (plan.planContent || '待填报') + '\n\n二、佐证材料\n' + (mats.map(m => m.fileName).join('、') || '无') + '\n\n三、整改成效\n已按方案完成整改措施，相关佐证材料已上传。'
-        request({ url: '/rectification/report', method: 'post', data: { taskId: row.taskId, reportContent: content } }).then(() => {
-          proxy.$modal.msgSuccess('整改报告已生成，请前往任务详情审阅后提交审批')
-          getList()
-        })
-      })
-    })
-  }).catch(() => {})
-}
 
 function handleEditPlan(row) {
   router.push('/rectification/task-page/detail/' + row.taskId + '?tab=plan')
 }
 
-/** 上传材料 - 跳转任务详情页 */
-function handleUploadMaterial(row) {
-  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=material')
-}
-
-/** 提交报告 - 跳转任务详情页 */
 function handleSubmitReport(row) {
-  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=report')
+  const tab = canModifyReport(row) ? 'plan' : 'report'
+  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=' + tab)
 }
 
-/** 申请销号 */
 function handleApplyClosure(row) {
+  if (!canApplyClosure(row)) {
+    proxy.$modal.msgWarning('整改报告需经被审单位负责人审批通过后，方可申请销号')
+    return
+  }
   currentTask.value = row
   closureForm.taskId = row.taskId
-  try { closureForm.issueId = JSON.parse((row.issueIds || '[0]').replace(/'/g,'"'))[0] } catch(e) { closureForm.issueId = 0 }
+  closureForm.issueId = parseFirstIssueId(row.issueIds)
   closureForm.remark = ''
   closureForm.agreed = false
   closureLoading.value = true
   closureReportContent.value = ''
+  closureMaterials.value = []
+  closureResponsibleName.value = ''
   closureOpen.value = true
-  // 加载方案 + 材料 + 报告，组成完整报告预览
-  const pid = request({ url: '/rectification/plan/' + row.taskId, method: 'get' })
-  const rid = request({ url: '/rectification/report/' + row.taskId, method: 'get' })
-  const mid = request({ url: '/rectification/material/list/' + closureForm.issueId, method: 'get' })
-  Promise.all([pid, rid, mid]).then(([pRes, rRes, mRes]) => {
-    const plan = pRes.data || {}
-    const rpt = rRes.data || {}
-    const mats = mRes.rows || []
-    closureReportContent.value = '【整改报告】\n\n一、整改方案\n' + (plan.planContent || '待填报') +
-      '\n\n二、佐证材料\n' + (mats.map(m => m.fileName).join('、') || '无') +
-      '\n\n三、整改报告\n' + (rpt.reportContent || '待填报') +
-      '\n\n四、整改成效\n已按方案完成整改措施，相关佐证材料已上传。'
-  }).catch(() => { closureReportContent.value = '加载失败，请重试' })
-  .finally(() => { closureLoading.value = false })
+
+  const materialReq = request({ url: '/rectification/material/list/' + closureForm.issueId, method: 'get' })
+  const planReq = request({ url: '/rectification/plan/' + row.taskId, method: 'get' })
+
+  planReq.then(planRes => {
+    const plan = planRes.data || {}
+    if (plan.responsibleUserId) {
+      request({ url: '/system/user/list', method: 'get', params: { userId: plan.responsibleUserId } }).then(userRes => {
+        const user = (userRes.rows || [])[0]
+        closureResponsibleName.value = user ? (user.nickName || user.userName || '') : ''
+      }).catch(() => {})
+    }
+    closureResponsibleName.value = closureResponsibleName.value || plan.responsiblePerson || plan.rectifyPerson || ''
+  }).catch(() => {})
+
+  materialReq.then(materialRes => {
+    const materials = materialRes.rows || []
+    closureMaterials.value = materials
+    closureReportContent.value = ''
+  }).catch(() => {
+    closureReportContent.value = '加载失败，请重试'
+  }).finally(() => {
+    closureLoading.value = false
+  })
+}
+
+function downloadClosureReport() {
+  if (!closureForm.taskId) return
+  downloadReportWord(closureForm.taskId).then(response => {
+    saveClosureBlob(response.data, closureFallbackReportName())
+  })
+}
+
+function downloadClosureMaterial(row) {
+  const materialId = row.materialId || row.id
+  if (!materialId) {
+    proxy.$modal.msgWarning('材料ID不可用')
+    return
+  }
+  downloadMaterial(materialId).then(blob => {
+    saveClosureBlob(blob, row.fileName || ('material_' + materialId))
+  })
+}
+
+async function saveClosureBlob(blob, filename) {
+  if (blob && blob.type === 'application/json') {
+    const text = await blob.text()
+    let data = {}
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      data = {}
+    }
+    proxy.$modal.msgError(data.msg || '下载失败')
+    return
+  }
+  saveAs(new Blob([blob]), filename)
+}
+
+function reportFileName(response, fallback) {
+  const disposition = response && response.headers ? response.headers['content-disposition'] : ''
+  const utf8Match = disposition && disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) {
+    const decoded = decodeURIComponent(utf8Match[1])
+    return isGenericReportFileName(decoded) ? fallback : decoded
+  }
+  const nameMatch = disposition && disposition.match(/filename="?([^"]+)"?/i)
+  if (nameMatch) {
+    const decoded = decodeURIComponent(nameMatch[1])
+    return isGenericReportFileName(decoded) ? fallback : decoded
+  }
+  return fallback
+}
+
+function isGenericReportFileName(filename) {
+  return /^report_\d+\.docx$/i.test(filename || '') || /^rectification_report_\d+\.docx$/i.test(filename || '')
+}
+
+function closureFallbackReportName() {
+  const name = userStore.name || '登录用户'
+  return name + '整改报告.docx'
 }
 
 function submitClosure() {
-  if (!closureForm.agreed) { proxy.$modal.msgWarning('请勾选真实性承诺'); return }
+  if (!closureForm.agreed) {
+    proxy.$modal.msgWarning('请勾选真实性承诺')
+    return
+  }
   submitLoading.value = true
   applyClosure({
     taskId: closureForm.taskId,
     issueId: closureForm.issueId,
-    applyContent: (closureForm.remark || '申请销号') + '\n\n---\n' + closureReportContent.value
+    applyContent: (closureForm.remark || '申请销号')
+      + '\n\n报告文件：' + closureFallbackReportName()
+      + '\n附件材料：' + (closureMaterials.value.map(m => m.fileName).join('、') || '无')
   }).then(() => {
     proxy.$modal.msgSuccess('销号申请已提交')
     closureOpen.value = false
-    getList()
+    window.setTimeout(() => {
+      getList()
+    }, 300)
   }).finally(() => {
     submitLoading.value = false
   })
 }
 
-/** 申请延期 */
 function handleApplyExtension(row) {
   currentTask.value = row
   extensionForm.taskId = row.taskId
   extensionForm.newDeadline = undefined
   extensionForm.reason = undefined
-  if (proxy.$refs['extensionFormRef']) {
-    proxy.$refs['extensionFormRef'].resetFields()
+  if (proxy.$refs.extensionFormRef) {
+    proxy.$refs.extensionFormRef.resetFields()
   }
   extensionOpen.value = true
 }
 
 function submitExtension() {
-  proxy.$refs['extensionFormRef'].validate(valid => {
-    if (valid) {
-      submitLoading.value = true
-      applyExtension(extensionForm).then(() => {
-        proxy.$modal.msgSuccess('延期申请已提交')
-        extensionOpen.value = false
-        getList()
-      }).finally(() => {
-        submitLoading.value = false
-      })
-    }
+  proxy.$refs.extensionFormRef.validate(valid => {
+    if (!valid) return
+    submitLoading.value = true
+    applyExtension(extensionForm).then(() => {
+      proxy.$modal.msgSuccess('延期申请已提交')
+      extensionOpen.value = false
+      getList()
+    }).finally(() => {
+      submitLoading.value = false
+    })
   })
 }
 
@@ -535,10 +755,15 @@ onMounted(() => {
 .stat-card-right {
   color: #c0c4cc;
 }
-.stat-card-info .stat-card-right { color: #409eff; }
-.stat-card-warning .stat-card-right { color: #e6a23c; }
-.stat-card-success .stat-card-right { color: #67c23a; }
-
+.stat-card-info .stat-card-right {
+  color: #409eff;
+}
+.stat-card-warning .stat-card-right {
+  color: #e6a23c;
+}
+.stat-card-success .stat-card-right {
+  color: #67c23a;
+}
 .mb8 {
   margin-bottom: 8px;
 }
@@ -548,7 +773,32 @@ onMounted(() => {
 .ml5 {
   margin-left: 5px;
 }
-.confirm-dialog-body {
-  padding: 10px 0;
+.loading-box {
+  text-align: center;
+  padding: 20px;
+}
+.preview-title {
+  margin: 0 0 5px;
+}
+.report-preview {
+  max-height: 280px;
+  overflow-y: auto;
+  background: #f5f7fa;
+  padding: 12px;
+  border-radius: 4px;
+  white-space: pre-wrap;
+  font-size: 13px;
+  margin-bottom: 15px;
+}
+.closure-file-row,
+.closure-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+.agreement-text {
+  white-space: normal;
+  line-height: 1.6;
 }
 </style>

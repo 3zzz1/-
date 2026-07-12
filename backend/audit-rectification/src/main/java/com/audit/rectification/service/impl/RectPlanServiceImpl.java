@@ -37,7 +37,7 @@ public class RectPlanServiceImpl implements IRectPlanService {
             p.setTaskId(plan.getTaskId());
             p.setIssueId(plan.getIssueId());
             p.setProgressType("PLAN_SUBMIT");
-            p.setContent("Submit rectification plan");
+            p.setContent("整改方案已提交");
             p.setOperatorId(SecurityUtils.getUserId());
             p.setOperatorName(SecurityUtils.getUsername());
             p.setOperateTime(new Date());
@@ -57,7 +57,7 @@ public class RectPlanServiceImpl implements IRectPlanService {
             p.setTaskId(plan.getTaskId());
             p.setIssueId(plan.getIssueId());
             p.setProgressType("PLAN_SUBMIT");
-            p.setContent("Update rectification plan");
+            p.setContent("整改方案已修改并重新提交");
             p.setOperatorId(SecurityUtils.getUserId());
             p.setOperatorName(SecurityUtils.getUsername());
             p.setOperateTime(new Date());

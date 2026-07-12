@@ -8,11 +8,14 @@ import org.springframework.transaction.annotation.Transactional;
 import com.audit.rectification.domain.RectClosure;
 import com.audit.rectification.domain.RectIssue;
 import com.audit.rectification.domain.RectProgress;
+import com.audit.rectification.domain.RectReport;
 import com.audit.rectification.domain.RectTask;
 import com.audit.rectification.mapper.RectClosureMapper;
 import com.audit.rectification.mapper.RectIssueMapper;
 import com.audit.rectification.mapper.RectProgressMapper;
+import com.audit.rectification.mapper.RectReportMapper;
 import com.audit.rectification.mapper.RectTaskMapper;
+import com.ruoyi.common.exception.ServiceException;
 import com.audit.rectification.service.IRectClosureService;
 import com.ruoyi.common.utils.SecurityUtils;
 
@@ -37,6 +40,9 @@ public class RectClosureServiceImpl implements IRectClosureService {
     @Autowired
     private RectTaskMapper rectTaskMapper;
 
+    @Autowired
+    private RectReportMapper rectReportMapper;
+
     @Override
     public List<RectClosure> selectRectClosureList(RectClosure closure) {
         return rectClosureMapper.selectRectClosureList(closure);
@@ -48,19 +54,47 @@ public class RectClosureServiceImpl implements IRectClosureService {
     }
 
     @Override
+    public RectClosure selectLatestRectClosureByTaskId(Long taskId) {
+        return rectClosureMapper.selectLatestRectClosureByTaskId(taskId);
+    }
+
+    @Override
     @Transactional
     public int applyClosure(Long issueId, Long taskId, String content) {
-        // 创建销号记录
-        RectClosure closure = new RectClosure();
-        closure.setIssueId(issueId);
-        closure.setTaskId(taskId);
-        closure.setApplyContent(content);
-        closure.setStatus("0");
-        closure.setApplyUserId(SecurityUtils.getUserId());
-        closure.setApplyTime(new Date());
-        closure.setCreateBy(SecurityUtils.getUsername());
-        closure.setCreateTime(new Date());
-        int rows = rectClosureMapper.insertRectClosure(closure);
+        RectReport report = rectReportMapper.selectRectReportByTaskId(taskId);
+        if (report == null || !"2".equals(report.getStatus()) || !"1".equals(report.getUnitApproveStatus())) {
+            throw new ServiceException("整改报告需经被审单位负责人审批通过后，方可发起销号申请");
+        }
+
+        // 作废同一任务下仍在待审核的旧销号申请，避免管理员继续处理旧请求。
+        RectClosure query = new RectClosure();
+        query.setTaskId(taskId);
+        query.setStatus("0");
+        List<RectClosure> pendingClosures = rectClosureMapper.selectRectClosureList(query);
+        for (RectClosure pending : pendingClosures) {
+            RectClosure old = new RectClosure();
+            old.setClosureId(pending.getClosureId());
+            old.setStatus("2");
+            old.setAuditResult("2");
+            old.setAuditOpinion("整改单位重新发起销号申请，原待审核销号申请自动作废。");
+            old.setReRectRequired("以最新销号申请为准。");
+            old.setAuditUserId(SecurityUtils.getUserId());
+            old.setAuditTime(new Date());
+            old.setUpdateBy(SecurityUtils.getUsername());
+            old.setUpdateTime(new Date());
+            rectClosureMapper.updateRectClosure(old);
+        }
+
+        RectClosure newClosure = new RectClosure();
+        newClosure.setIssueId(issueId);
+        newClosure.setTaskId(taskId);
+        newClosure.setApplyContent(content);
+        newClosure.setStatus("0");
+        newClosure.setApplyUserId(SecurityUtils.getUserId());
+        newClosure.setApplyTime(new Date());
+        newClosure.setCreateBy(SecurityUtils.getUsername());
+        newClosure.setCreateTime(new Date());
+        int rows = rectClosureMapper.insertRectClosure(newClosure);
 
         // 更新问题状态为"待审核"
         RectIssue issue = new RectIssue();
@@ -164,13 +198,26 @@ public class RectClosureServiceImpl implements IRectClosureService {
             task.setUpdateTime(new Date());
             rectTaskMapper.updateRectTask(task);
 
+            // 销号被驳回后，原整改报告不再代表最终整改结果，需要退回可编辑状态，
+            // 由整改人补充整改后重新提交给被审单位负责人审批。
+            RectReport report = rectReportMapper.selectRectReportByTaskId(existingClosure.getTaskId());
+            if (report != null) {
+                RectReport updateReport = new RectReport();
+                updateReport.setReportId(report.getReportId());
+                updateReport.setStatus("0");
+                updateReport.setUnitApproveStatus("0");
+                updateReport.setUpdateBy(SecurityUtils.getUsername());
+                updateReport.setUpdateTime(new Date());
+                rectReportMapper.updateRectReport(updateReport);
+            }
+
             // 创建进度记录
             RectProgress progress = new RectProgress();
             progress.setTaskId(existingClosure.getTaskId());
             progress.setIssueId(existingClosure.getIssueId());
             progress.setProgressType("CLOSURE_REJECTED");
-            progress.setContent("销号审核驳回，需重新整改。审核意见：" + opinion
-                    + "，补充要求：" + (reRectRequired != null ? reRectRequired : ""));
+            progress.setContent("销号审核驳回，需重新整改。补充整改要求："
+                    + (reRectRequired != null ? reRectRequired : ""));
             progress.setOperatorId(SecurityUtils.getUserId());
             progress.setOperatorName(SecurityUtils.getUsername());
             progress.setOperateTime(new Date());

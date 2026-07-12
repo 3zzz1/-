@@ -29,3 +29,8 @@ export function getFundRecovery() {
 export function getRecurring() {
   return request({ url: '/rectification/statistics/recurring', method: 'get' })
 }
+
+// 整改趋势
+export function getTrend(type) {
+  return request({ url: '/rectification/statistics/trend', method: 'get', params: { type } })
+}
