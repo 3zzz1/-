@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog material-upload-dialog"
     :title="title"
     v-model="visible"
     width="550px"
@@ -7,7 +8,7 @@
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form class="mobile-dialog-form" ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="材料类型" prop="materialType">
         <el-select
           v-model="form.materialType"
@@ -27,12 +28,12 @@
         <el-upload
           ref="uploadRef"
           class="material-upload"
-          drag
+          v-model:file-list="fileList"
+          :drag="!isMobile"
           multiple
           :action="uploadUrl"
           :headers="uploadHeaders"
           :data="uploadData"
-          :file-list="fileList"
           :auto-upload="false"
           :on-change="handleFileChange"
           :on-remove="handleFileRemove"
@@ -42,9 +43,19 @@
           :limit="10"
           accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.bmp,.zip,.rar"
         >
-          <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
-          <div class="el-upload__text">
-            将文件拖到此处，或<em>点击上传</em>
+          <template v-if="isMobile">
+            <el-button native-type="button" type="primary" plain icon="Upload">
+              选择佐证文件
+            </el-button>
+          </template>
+          <template v-else>
+            <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+            <div class="el-upload__text">
+              将文件拖到此处，或<em>点击上传</em>
+            </div>
+          </template>
+          <div v-if="isMobile" class="mobile-upload-text">
+            支持多选，选中文件后点击下方“开始上传”
           </div>
           <template #tip>
             <div class="el-upload__tip">
@@ -76,13 +87,14 @@
       <div class="dialog-footer">
         <el-button
           type="primary"
+          native-type="button"
           :loading="uploadLoading"
-          @click="handleUpload"
+          @click.prevent="handleUpload"
           :disabled="pendingFiles.length === 0"
         >
           开始上传
         </el-button>
-        <el-button @click="handleClose">取 消</el-button>
+        <el-button native-type="button" @click.prevent="handleClose">取 消</el-button>
       </div>
     </template>
   </el-dialog>
@@ -92,6 +104,7 @@
 import { ref, reactive, computed, getCurrentInstance } from 'vue'
 import { getToken } from '@/utils/auth'
 import { uploadMaterial } from '@/api/rectification/material'
+import useAppStore from '@/store/modules/app'
 
 const props = defineProps({
   modelValue: {
@@ -111,6 +124,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'success'])
 
 const { proxy } = getCurrentInstance()
+const appStore = useAppStore()
 const formRef = ref(null)
 const uploadRef = ref(null)
 const uploadLoading = ref(false)
@@ -118,6 +132,7 @@ const fileList = ref([])
 const pendingFiles = ref([])
 
 const title = ref('上传材料')
+const isMobile = computed(() => appStore.device === 'mobile')
 
 const visible = computed({
   get: () => props.modelValue,
@@ -323,5 +338,44 @@ function handleClose() {
   color: #909399;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.mobile-upload-text {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .material-upload {
+    :deep(.el-upload) {
+      width: 100%;
+    }
+
+    :deep(.el-button) {
+      width: 100%;
+      min-height: 40px;
+    }
+  }
+
+  .pending-files {
+    margin-top: 12px;
+  }
+
+  .file-summary-list {
+    max-height: 180px;
+
+    li {
+      align-items: flex-start;
+      gap: 6px;
+      padding: 8px;
+
+      span:nth-child(2) {
+        white-space: normal;
+        word-break: break-word;
+      }
+    }
+  }
 }
 </style>

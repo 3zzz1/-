@@ -23,8 +23,11 @@ import com.audit.rectification.domain.dto.StatisticsQueryDTO;
 import com.audit.rectification.domain.dto.StatisticsResultVO;
 import com.audit.rectification.mapper.RectIssueMapper;
 import com.audit.rectification.mapper.RectClosureMapper;
+import com.audit.rectification.domain.RectTask;
+import com.audit.rectification.mapper.RectTaskMapper;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.utils.SecurityUtils;
 
 @RestController
 @RequestMapping("/rectification/statistics")
@@ -34,6 +37,47 @@ public class RectStatisticsController extends BaseController {
     private RectIssueMapper rectIssueMapper;
     @Autowired
     private RectClosureMapper rectClosureMapper;
+    @Autowired
+    private RectTaskMapper rectTaskMapper;
+
+    @GetMapping("/home-overview")
+    public AjaxResult homeOverview() {
+        Map<String, Object> result = new HashMap<>();
+        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        long total = all.size();
+        long completed = all.stream().filter(i -> "3".equals(i.getStatus())).count();
+        long inProgress = all.stream().filter(i -> "1".equals(i.getStatus())).count();
+        long overdue = all.stream().filter(this::isOverdue).count();
+
+        result.put("totalIssues", total);
+        result.put("completedCount", completed);
+        result.put("inProgressCount", inProgress);
+        result.put("overdueCount", overdue);
+        result.put("completionRate", total > 0 ? new BigDecimal(String.format("%.2f", 100.0 * completed / total)) : BigDecimal.ZERO);
+        result.put("overdueRate", total > 0 ? new BigDecimal(String.format("%.2f", 100.0 * overdue / total)) : BigDecimal.ZERO);
+        result.put("totalRecoveryAmount", all.stream()
+            .filter(i -> i.getIssueAmount() != null && "3".equals(i.getStatus()))
+            .map(i -> i.getIssueAmount()).reduce(BigDecimal.ZERO, BigDecimal::add));
+
+        Long deptId = SecurityUtils.getLoginUser().getDeptId();
+        boolean unitRole = SecurityUtils.hasRole("audited_unit_leader")
+                || SecurityUtils.hasRole("audited_unit_liaison")
+                || SecurityUtils.hasRole("rect_responsible");
+        List<RectTask> tasks;
+        if (unitRole && deptId != null) {
+            tasks = rectTaskMapper.selectRectTaskListByDeptId(deptId);
+        } else {
+            tasks = rectTaskMapper.selectRectTaskList(new RectTask());
+        }
+        result.put("tasks", tasks.size());
+        result.put("myTasks", tasks.size());
+        result.put("recentTasks", buildRecentTasks(tasks));
+
+        RectClosure pendingClosure = new RectClosure();
+        pendingClosure.setStatus("0");
+        result.put("closures", rectClosureMapper.selectRectClosureList(pendingClosure).size());
+        return success(result);
+    }
 
     @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
     @GetMapping("/overview")
@@ -244,6 +288,32 @@ public class RectStatisticsController extends BaseController {
         }
         list.sort((a, b) -> Long.compare(toLong(b.get("count")), toLong(a.get("count"))));
         return list;
+    }
+
+    private List<Map<String, Object>> buildRecentTasks(List<RectTask> tasks) {
+        return tasks.stream()
+            .limit(5)
+            .map(task -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("taskId", task.getTaskId());
+                item.put("taskNo", task.getTaskNo());
+                item.put("status", task.getStatus());
+                item.put("statusLabel", taskStatusLabel(task.getStatus()));
+                item.put("deadline", task.getDeadline());
+                item.put("dispatchTime", task.getDispatchTime());
+                return item;
+            })
+            .collect(Collectors.toList());
+    }
+
+    private String taskStatusLabel(String status) {
+        if ("0".equals(status)) return "待确认";
+        if ("1".equals(status)) return "整改中";
+        if ("2".equals(status)) return "已提交报告";
+        if ("3".equals(status)) return "待审核";
+        if ("4".equals(status)) return "已完成";
+        if ("5".equals(status)) return "已驳回";
+        return "-";
     }
 
     private boolean isOverdue(RectIssue issue) {

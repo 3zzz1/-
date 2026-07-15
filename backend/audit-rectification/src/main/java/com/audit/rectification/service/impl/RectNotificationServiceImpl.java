@@ -2,12 +2,15 @@ package com.audit.rectification.service.impl;
 
 import java.util.Date;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.audit.rectification.domain.RectNotification;
 import com.audit.rectification.mapper.RectNotificationMapper;
 import com.audit.rectification.service.IRectNotificationService;
+import com.audit.rectification.service.IWeComMessageService;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.system.mapper.SysUserMapper;
@@ -27,6 +30,9 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
     @Autowired
     private SysUserMapper sysUserMapper;
 
+    @Autowired
+    private IWeComMessageService weComMessageService;
+
     @Override
     public List<RectNotification> selectMyNotificationList() {
         RectNotification query = new RectNotification();
@@ -41,6 +47,7 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
         for (Long id : ids) {
             RectNotification notification = new RectNotification();
             notification.setNotificationId(id);
+            notification.setRecipientUserId(SecurityUtils.getUserId());
             notification.setReadStatus("1");
             notification.setReadTime(new Date());
             rows += rectNotificationMapper.updateRectNotification(notification);
@@ -77,7 +84,10 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
         notification.setNotifyType("SYSTEM_MSG");
         notification.setTitle(title);
         notification.setContent(content);
-        return insertNotification(notification);
+        int rows = insertNotification(notification);
+        SysUser user = sysUserMapper.selectUserById(userId);
+        weComMessageService.sendTaskNotice(user, taskId, title, content);
+        return rows;
     }
 
     @Override
@@ -88,9 +98,12 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
         }
         List<SysUser> users = sysUserMapper.selectUsersByRoleKeys(roleKeys, deptId);
         int rows = 0;
+        Set<Long> notifiedUserIds = new HashSet<>();
         if (users != null) {
             for (SysUser user : users) {
-                rows += notifyUser(user.getUserId(), taskId, issueId, title, content);
+                if (user.getUserId() != null && notifiedUserIds.add(user.getUserId())) {
+                    rows += notifyUser(user.getUserId(), taskId, issueId, title, content);
+                }
             }
         }
         return rows;

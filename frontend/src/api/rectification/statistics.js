@@ -2,7 +2,7 @@ import request from '@/utils/request'
 
 // 整改总览
 export function getOverview(query) {
-  return request({ url: '/rectification/statistics/overview', method: 'get', params: query })
+  return request({ url: '/rectification/statistics/home-overview', method: 'get', params: query })
 }
 
 // 问题类型分布

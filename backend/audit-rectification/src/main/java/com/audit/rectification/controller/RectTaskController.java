@@ -69,7 +69,7 @@ public class RectTaskController extends BaseController {
     /**
      * 下发整改任务
      */
-    @PreAuthorize("@ss.hasPermi('rectification:task:add')")
+    @PreAuthorize("@ss.hasPermi('rectification:task:dispatch')")
     @PostMapping
     public AjaxResult add(@RequestBody TaskDispatchDTO dto) {
         return toAjax(rectTaskService.insertRectTask(dto));
@@ -78,7 +78,7 @@ public class RectTaskController extends BaseController {
     /**
      * 批量下发整改任务
      */
-    @PreAuthorize("@ss.hasPermi('rectification:task:add')")
+    @PreAuthorize("@ss.hasPermi('rectification:task:batchDispatch')")
     @PostMapping("/batch")
     public AjaxResult batchDispatch(@RequestBody List<TaskDispatchDTO> dtoList) {
         return toAjax(rectTaskService.batchDispatch(dtoList));
@@ -106,7 +106,7 @@ public class RectTaskController extends BaseController {
     /**
      * 生成整改通知书
      */
-    @PreAuthorize("@ss.hasPermi('rectification:task:notice')")
+    @PreAuthorize("@ss.hasPermi('rectification:task:notice') or @ss.hasPermi('rectification:task:query')")
     @PostMapping("/notice/{taskId}")
     public void generateNotice(@PathVariable Long taskId, HttpServletResponse response) {
         rectTaskService.generateNotice(taskId, response);

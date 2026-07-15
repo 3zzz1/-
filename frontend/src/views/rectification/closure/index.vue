@@ -1,7 +1,7 @@
 <template>
-  <div class="app-container">
+  <div class="app-container closure-page">
     <!-- Search Form -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="80px">
+    <el-form class="desktop-query-form" :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="80px">
       <el-form-item label="问题标题" prop="issueTitle">
         <el-input
           v-model="queryParams.issueTitle"
@@ -49,10 +49,42 @@
       </el-form-item>
     </el-form>
 
+    <MobileFilterBar
+      v-model="queryParams.issueTitle"
+      placeholder="搜索问题标题"
+      :active-count="mobileFilterCount"
+      @search="handleQuery"
+      @reset="resetQuery"
+    >
+      <el-form label-position="top">
+        <el-form-item label="申请人">
+          <el-input v-model="queryParams.applicant" placeholder="请输入申请人" clearable />
+        </el-form-item>
+        <el-form-item label="审核状态">
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
+            <el-option label="待审核" value="0" />
+            <el-option label="已销号" value="1" />
+            <el-option label="已驳回" value="2" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="申请时间">
+          <el-date-picker
+            v-model="dateRange"
+            value-format="YYYY-MM-DD"
+            type="daterange"
+            range-separator="-"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+          />
+        </el-form-item>
+      </el-form>
+    </MobileFilterBar>
+
     <!-- Toolbar -->
-    <el-row :gutter="10" class="mb8">
+    <el-row :gutter="10" class="mb8 closure-toolbar">
       <el-col :span="1.5">
         <el-button
+          v-if="canApplyClosure"
           type="primary"
           plain
           icon="Plus"
@@ -64,7 +96,7 @@
     </el-row>
 
     <!-- Table -->
-    <el-table v-loading="loading" :data="closureList" @selection-change="handleSelectionChange" stripe>
+    <el-table class="closure-table" v-loading="loading" :data="closureList" @selection-change="handleSelectionChange" stripe>
       <el-table-column type="selection" width="50" align="center" />
       <el-table-column label="问题标题" align="center" prop="issueTitle" min-width="200" show-overflow-tooltip />
       <el-table-column label="销号附言" align="center" prop="description" min-width="240" show-overflow-tooltip>
@@ -122,6 +154,36 @@
       </el-table-column>
     </el-table>
 
+    <div v-loading="loading" class="closure-mobile-list">
+      <el-empty v-if="!loading && closureList.length === 0" description="暂无销号申请" />
+      <section v-for="item in closureList" :key="item.id || item.closureId" class="closure-card">
+        <div class="closure-card-header">
+          <div class="closure-card-title">
+            <strong>{{ item.issueTitle || '销号申请' }}</strong>
+            <span>{{ closureRemark(item) }}</span>
+          </div>
+          <el-tag :type="getStatusTagType(item.status)" size="small">{{ getStatusLabel(item.status) }}</el-tag>
+        </div>
+        <div class="closure-card-meta">
+          <span><em>申请人</em><b>{{ item.applicant || item.applyBy || item.createBy || '-' }}</b></span>
+          <span><em>申请时间</em><b>{{ item.applyTime || item.createTime || '-' }}</b></span>
+          <span><em>审核人</em><b>{{ item.auditor || item.auditBy || '-' }}</b></span>
+          <span><em>审核时间</em><b>{{ item.auditTime || item.updateTime || '-' }}</b></span>
+        </div>
+        <div class="closure-card-actions">
+          <el-button
+            v-if="item.status === '0'"
+            type="primary"
+            plain
+            icon="Check"
+            @click="handleAudit(item)"
+            v-hasPermi="['rectification:closure:audit']"
+          >审核</el-button>
+          <el-button type="primary" plain icon="View" @click="handleView(item)">查看</el-button>
+        </div>
+      </section>
+    </div>
+
     <!-- Pagination -->
     <pagination
       v-show="total > 0"
@@ -139,72 +201,62 @@
     />
 
     <!-- View Dialog -->
-    <el-dialog :title="viewTitle" v-model="viewOpen" width="650px" append-to-body>
-      <el-descriptions :column="1" border size="default">
-        <el-descriptions-item label="问题标题" label-align="right" min-width="120">
-          {{ viewData.issueTitle || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="销号附言" label-align="right">
-          <div style="white-space: pre-wrap; line-height: 1.6; max-height: 200px; overflow-y: auto; background: #f5f7fa; padding: 8px; border-radius: 4px">
-            {{ closureRemark(viewData) }}
-          </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="整改报告文件" label-align="right">
-          <el-button
-            type="primary"
-            plain
-            size="small"
-            icon="Download"
-            :disabled="!viewData.taskId"
-            @click="downloadReport(viewData)"
-          >
-            下载Word整改报告
-          </el-button>
-        </el-descriptions-item>
-        <el-descriptions-item label="附件材料" label-align="right">
-          <div v-if="viewData.attachments && viewData.attachments.length > 0" class="attachment-actions">
-            <el-button
-              v-for="file in viewData.attachments"
-              :key="file.materialId || file.id"
-              type="primary"
-              plain
-              size="small"
-              icon="Download"
-              @click="downloadAttachment(file)"
-            >
-              {{ file.fileName || file.name || '附件' }}
-            </el-button>
-          </div>
-          <span v-else class="text-muted">暂无附件</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="申请人" label-align="right">
-          {{ viewData.applicant || viewData.applyBy || viewData.createBy || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="申请时间" label-align="right">
-          {{ viewData.applyTime || viewData.createTime || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="状态" label-align="right">
+    <el-dialog class="closure-detail-dialog" :title="viewTitle" v-model="viewOpen" width="720px" append-to-body>
+      <section class="closure-detail-summary">
+        <div class="closure-detail-heading">
+          <span>销号申请</span>
           <el-tag :type="getStatusTagType(viewData.status)" size="small">
             {{ getStatusLabel(viewData.status) }}
           </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item label="审核人" label-align="right">
-          {{ viewData.auditor || viewData.auditUserId || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="审核时间" label-align="right">
-          {{ viewData.auditTime || viewData.updateTime || '-' }}
-        </el-descriptions-item>
-        <el-descriptions-item label="审核意见" label-align="right" v-if="viewData.auditOpinion || viewData.opinion">
-          <div style="white-space: pre-wrap; line-height: 1.6">
-            {{ viewData.auditOpinion || viewData.opinion || '-' }}
-          </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="补充整改要求" label-align="right" v-if="viewData.reRectRequired || viewData.reworkRequirement">
-          <div style="white-space: pre-wrap; line-height: 1.6; color: #F56C6C">
-            {{ viewData.reRectRequired || viewData.reworkRequirement || '-' }}
-          </div>
-        </el-descriptions-item>
-      </el-descriptions>
+        </div>
+        <h3>{{ viewData.issueTitle || '未命名问题' }}</h3>
+        <div class="closure-detail-meta">
+          <div><span>申请人</span><strong>{{ viewData.applicant || viewData.applyBy || viewData.createBy || '-' }}</strong></div>
+          <div><span>申请时间</span><strong>{{ viewData.applyTime || viewData.createTime || '-' }}</strong></div>
+          <div><span>审核人</span><strong>{{ viewData.auditor || viewData.auditUserId || '-' }}</strong></div>
+          <div><span>审核时间</span><strong>{{ viewData.auditTime || viewData.updateTime || '-' }}</strong></div>
+        </div>
+        <div class="closure-detail-text">
+          <span>销号附言</span>
+          <p>{{ closureRemark(viewData) || '-' }}</p>
+        </div>
+      </section>
+
+      <section class="closure-detail-section">
+        <h4>整改文件</h4>
+        <div class="closure-detail-files">
+          <el-button
+            type="primary"
+            plain
+            icon="Document"
+            :disabled="!viewData.taskId"
+            @click="downloadReport(viewData)"
+          >整改报告</el-button>
+          <el-button
+            v-for="file in viewData.attachments || []"
+            :key="file.materialId || file.id"
+            plain
+            icon="Paperclip"
+            @click="downloadAttachment(file)"
+          >{{ file.fileName || file.name || '附件' }}</el-button>
+        </div>
+        <span v-if="!viewData.attachments || viewData.attachments.length === 0" class="text-muted">暂无附件材料</span>
+      </section>
+
+      <section
+        v-if="viewData.auditOpinion || viewData.opinion || viewData.reRectRequired || viewData.reworkRequirement"
+        class="closure-detail-section"
+      >
+        <h4>审核记录</h4>
+        <div v-if="viewData.auditOpinion || viewData.opinion" class="closure-detail-text">
+          <span>审核意见</span>
+          <p>{{ viewData.auditOpinion || viewData.opinion }}</p>
+        </div>
+        <div v-if="viewData.reRectRequired || viewData.reworkRequirement" class="closure-detail-text danger">
+          <span>补充整改要求</span>
+          <p>{{ viewData.reRectRequired || viewData.reworkRequirement }}</p>
+        </div>
+      </section>
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="viewOpen = false">关 闭</el-button>
@@ -228,15 +280,20 @@
 </template>
 
 <script setup name="Closure">
-import { ref, reactive, toRefs, getCurrentInstance } from 'vue'
+import { ref, reactive, toRefs, getCurrentInstance, computed } from 'vue'
 import { saveAs } from 'file-saver'
 import request from '@/utils/request'
 import { listClosure, getClosure } from '@/api/rectification/closure'
 import { downloadReportWord } from '@/api/rectification/report'
+import { downloadMaterial } from '@/api/rectification/material'
 import ClosureApply from './components/ClosureApply.vue'
 import ClosureAudit from './components/ClosureAudit.vue'
+import MobileFilterBar from '@/components/MobileFilterBar/index.vue'
+import useUserStore from '@/store/modules/user'
 
 const { proxy } = getCurrentInstance()
+const userStore = useUserStore()
+const canApplyClosure = computed(() => (userStore.roles || []).includes('rect_responsible'))
 
 const closureList = ref([])
 const loading = ref(true)
@@ -268,6 +325,11 @@ const data = reactive({
 })
 
 const { queryParams } = toRefs(data)
+
+const mobileFilterCount = computed(() => {
+  return [queryParams.value.applicant, queryParams.value.status].filter(Boolean).length
+    + (dateRange.value && dateRange.value.length === 2 ? 1 : 0)
+})
 
 /** Status helpers */
 function getStatusTagType(status) {
@@ -387,7 +449,9 @@ function downloadAttachment(file) {
     proxy.$modal.msgWarning('材料ID不可用')
     return
   }
-  proxy.download('/rectification/material/download/' + mid, {}, file.fileName || file.name || 'download')
+  downloadMaterial(mid).then(blob => {
+    saveFileBlob(blob, file.fileName || file.name || ('material_' + mid))
+  })
 }
 
 function closureRemark(row) {
@@ -421,6 +485,21 @@ async function saveReportBlob(blob, filename) {
   saveAs(new Blob([blob], {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   }), filename)
+}
+
+async function saveFileBlob(blob, filename) {
+  if (blob && blob.type === 'application/json') {
+    const text = await blob.text()
+    let data = {}
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      data = {}
+    }
+    proxy.$modal.msgError(data.msg || '下载失败')
+    return
+  }
+  saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), filename)
 }
 
 function reportOwnerFileName(row) {
@@ -486,6 +565,117 @@ getList()
   gap: 8px;
 }
 
+.closure-detail-summary,
+.closure-detail-section {
+  padding: 16px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.closure-detail-section {
+  margin-top: 12px;
+}
+
+.closure-detail-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.closure-detail-heading > span,
+.closure-detail-meta span,
+.closure-detail-text > span {
+  color: #8492a6;
+  font-size: 12px;
+}
+
+.closure-detail-summary h3 {
+  margin: 8px 0 16px;
+  color: #1f2f46;
+  font-size: 17px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.closure-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+
+.closure-detail-meta div {
+  min-width: 0;
+}
+
+.closure-detail-meta span,
+.closure-detail-meta strong {
+  display: block;
+}
+
+.closure-detail-meta strong {
+  margin-top: 4px;
+  color: #34465e;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.closure-detail-text {
+  padding: 10px 12px;
+  margin-top: 14px;
+  border-radius: 6px;
+  background: #f5f7fa;
+}
+
+.closure-detail-text p {
+  max-height: 180px;
+  margin: 5px 0 0;
+  overflow-y: auto;
+  color: #34465e;
+  font-size: 13px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.closure-detail-text.danger {
+  background: #fff2f0;
+}
+
+.closure-detail-text.danger p {
+  color: #c0362c;
+}
+
+.closure-detail-section h4 {
+  margin: 0 0 10px;
+  color: #34465e;
+  font-size: 14px;
+}
+
+.closure-detail-files {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.closure-detail-files .el-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.closure-detail-files .el-button :deep(span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .content-box {
   white-space: pre-wrap;
   line-height: 1.6;
@@ -498,5 +688,172 @@ getList()
 
 .text-muted {
   color: #c0c4cc;
+}
+
+.closure-mobile-list {
+  display: none;
+}
+
+.closure-card {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(36, 52, 75, 0.06);
+}
+
+.closure-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.closure-card-title {
+  min-width: 0;
+}
+
+.closure-card-title strong {
+  display: block;
+  color: #1f2f46;
+  font-size: 15px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closure-card-title span {
+  display: block;
+  margin-top: 4px;
+  color: #7a8798;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closure-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  padding: 12px 0;
+}
+
+.closure-card-meta span {
+  min-width: 0;
+}
+
+.closure-card-meta em {
+  display: block;
+  color: #8a96a8;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: normal;
+}
+
+.closure-card-meta b {
+  display: block;
+  margin-top: 3px;
+  color: #2c3e57;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closure-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+}
+
+.closure-card-actions .el-button {
+  width: 100%;
+  margin-left: 0;
+}
+
+@media (max-width: 768px) {
+  .closure-page {
+    padding: 12px;
+    background: #f5f7fb;
+  }
+
+  .desktop-query-form {
+    display: none;
+  }
+
+  .closure-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .closure-toolbar :deep(.el-col) {
+    flex: 1;
+    max-width: none;
+    width: auto;
+  }
+
+  .closure-toolbar :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .closure-toolbar :deep(.right-toolbar) {
+    display: none;
+  }
+
+  .closure-table {
+    display: none;
+  }
+
+  .closure-mobile-list {
+    display: block;
+  }
+
+  .attachment-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .attachment-actions .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .closure-detail-summary,
+  .closure-detail-section {
+    padding: 13px;
+  }
+
+  .closure-detail-meta,
+  .closure-detail-files {
+    grid-template-columns: 1fr;
+  }
+
+  .closure-page :deep(.el-dialog) {
+    width: 94vw !important;
+    margin-top: 5vh !important;
+  }
+
+  .closure-page :deep(.el-dialog__body) {
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .closure-card-meta,
+  .closure-card-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

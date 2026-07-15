@@ -37,7 +37,12 @@ export function assignTask(taskId, assignUserId) {
 
 // 生成整改通知书Word
 export function generateNotice(taskId) {
-  return request({ url: '/rectification/task/notice/' + taskId, method: 'get', responseType: 'blob' })
+  return request({
+    url: '/rectification/task/notice/' + taskId,
+    method: 'post',
+    responseType: 'blob',
+    returnResponse: true
+  })
 }
 
 // 查询逾期/临期预警

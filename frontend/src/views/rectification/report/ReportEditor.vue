@@ -160,6 +160,53 @@ watch(() => props.taskId, loadReport, { immediate: true })
 </script>
 
 <style scoped>
-.card-header { display: flex; justify-content: space-between; align-items: center; }
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-header > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .mb10 { margin-bottom: 10px; }
+
+@media (max-width: 768px) {
+  .report-editor :deep(.el-card__header),
+  .report-editor :deep(.el-card__body) {
+    padding: 12px;
+  }
+
+  .card-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .card-header > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .card-header .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .report-editor :deep(.el-textarea__inner) {
+    min-height: 260px !important;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+}
+
+@media (max-width: 420px) {
+  .card-header > div {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

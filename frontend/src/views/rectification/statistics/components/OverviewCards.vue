@@ -1,6 +1,6 @@
 <template>
-  <el-row :gutter="16">
-    <el-col :span="6" v-for="(item, index) in items" :key="index">
+  <el-row :gutter="16" class="overview-grid">
+    <el-col :xs="12" :sm="12" :md="6" v-for="(item, index) in items" :key="index">
       <div class="overview-card" :style="{ background: gradientColors[index % gradientColors.length] }">
         <div class="card-content">
           <div class="card-left">
@@ -97,6 +97,61 @@ const iconColors = [
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+}
+
+.overview-grid {
+  row-gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .overview-grid {
+    row-gap: 10px;
+  }
+
+  .overview-card {
+    min-height: 104px;
+    padding: 14px;
+
+    .card-content {
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .card-title {
+      min-height: 34px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .card-value {
+      display: block;
+
+      .value-number {
+        display: block;
+        font-size: 20px;
+        line-height: 1.15;
+        word-break: break-all;
+      }
+
+      .value-unit {
+        display: block;
+        margin-top: 3px;
+        font-size: 12px;
+      }
+    }
+
+    .card-right {
+      opacity: 0.45;
+
+      :deep(.el-icon) {
+        width: 30px !important;
+        height: 30px !important;
+        font-size: 30px !important;
+      }
+    }
   }
 }
 </style>

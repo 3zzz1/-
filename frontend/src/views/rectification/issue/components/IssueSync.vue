@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog issue-sync-dialog"
     :title="title"
     v-model="visible"
     width="600px"
@@ -15,7 +16,7 @@
       class="mb15"
     />
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form class="mobile-dialog-form" ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="选择项目" prop="projectId">
         <el-select
           v-model="form.projectId"

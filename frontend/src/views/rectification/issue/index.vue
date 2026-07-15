@@ -1,7 +1,7 @@
 <template>
-  <div class="app-container">
+  <div class="app-container issue-page">
     <!-- Search Form -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
+    <el-form class="desktop-query-form" :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
       <el-form-item label="问题编号" prop="issueNo">
         <el-input
           v-model="queryParams.issueNo"
@@ -56,8 +56,37 @@
       </el-form-item>
     </el-form>
 
+    <MobileFilterBar
+      v-model="queryParams.issueTitle"
+      placeholder="搜索问题标题"
+      :active-count="mobileFilterCount"
+      @search="handleQuery"
+      @reset="resetQuery"
+    >
+      <el-form label-position="top">
+        <el-form-item label="问题编号">
+          <el-input v-model="queryParams.issueNo" placeholder="请输入问题编号" clearable />
+        </el-form-item>
+        <el-form-item label="来源类型">
+          <el-select v-model="queryParams.sourceType" placeholder="全部来源" clearable>
+            <el-option v-for="dict in sourceTypeOptions" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="整改状态">
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
+            <el-option v-for="dict in statusOptions" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="问题分类">
+          <el-select v-model="queryParams.issueCategory" placeholder="全部分类" clearable>
+            <el-option v-for="dict in categoryOptions" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+    </MobileFilterBar>
+
     <!-- Action Bar -->
-    <el-row :gutter="10" class="mb8">
+    <el-row :gutter="10" class="mb8 issue-toolbar">
       <el-col :span="1.5">
         <el-button
           type="primary"
@@ -89,7 +118,7 @@
     </el-row>
 
     <!-- Table -->
-    <el-table v-loading="loading" :data="issueList" @selection-change="handleSelectionChange">
+    <el-table class="issue-table" v-loading="loading" :data="issueList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="问题编号" align="center" prop="issueNo" width="140" />
       <el-table-column
@@ -153,6 +182,48 @@
       </el-table-column>
     </el-table>
 
+    <div v-loading="loading" class="issue-mobile-list">
+      <el-empty v-if="!loading && issueList.length === 0" description="暂无问题数据" />
+      <section v-for="item in issueList" :key="item.issueId" class="issue-card">
+        <div class="issue-card-header">
+          <div class="issue-card-title">
+            <strong>{{ item.issueTitle || '-' }}</strong>
+            <span>{{ item.issueNo || '-' }}</span>
+          </div>
+          <el-tag :type="statusTag(item.status)">{{ statusLabel(item.status) }}</el-tag>
+        </div>
+
+        <div class="issue-card-meta">
+          <span>
+            <em>来源</em>
+            <b>{{ sourceTypeLabel(item.sourceType) }}</b>
+          </span>
+          <span>
+            <em>责任单位</em>
+            <b>{{ deptName(item.responsibleDeptId) || '-' }}</b>
+          </span>
+          <span>
+            <em>责任干部</em>
+            <b>{{ item.responsiblePerson || '-' }}</b>
+          </span>
+          <span>
+            <em>截止日期</em>
+            <b>{{ item.deadline || '-' }}</b>
+          </span>
+          <span>
+            <em>涉及金额</em>
+            <b>{{ item.issueAmount ? item.issueAmount.toLocaleString() : '-' }}</b>
+          </span>
+        </div>
+
+        <div class="issue-card-actions">
+          <el-button type="primary" plain icon="View" @click="handleDetail(item)" v-hasPermi="['rectification:issue:query']">查看</el-button>
+          <el-button type="primary" plain icon="Edit" @click="handleUpdate(item)" v-hasPermi="['rectification:issue:edit']">编辑</el-button>
+          <el-button type="danger" plain icon="Delete" @click="handleDelete(item)" v-hasPermi="['rectification:issue:remove']">删除</el-button>
+        </div>
+      </section>
+    </div>
+
     <pagination
       v-show="total > 0"
       :total="total"
@@ -162,8 +233,8 @@
     />
 
     <!-- Add/Edit Dialog -->
-    <el-dialog :title="title" v-model="open" width="750px" append-to-body>
-      <el-form ref="issueRef" :model="form" :rules="rules" label-width="110px">
+    <el-dialog class="issue-form-dialog" :title="title" v-model="open" width="750px" append-to-body>
+      <el-form class="issue-form" ref="issueRef" :model="form" :rules="rules" label-width="110px">
         <el-row>
           <el-col :span="24">
             <el-form-item label="问题标题" prop="issueTitle">
@@ -280,7 +351,7 @@
     </el-dialog>
 
     <!-- Detail Dialog -->
-    <el-dialog :title="detailTitle" v-model="detailOpen" width="700px" append-to-body>
+    <el-dialog class="issue-detail-dialog" :title="detailTitle" v-model="detailOpen" width="700px" append-to-body>
       <el-descriptions :column="2" border>
         <el-descriptions-item label="问题编号">{{ detail.issueNo }}</el-descriptions-item>
         <el-descriptions-item label="来源类型">
@@ -312,10 +383,11 @@
 </template>
 
 <script setup name="Issue">
-import { ref, reactive, toRefs } from 'vue'
+import { ref, reactive, toRefs, computed } from 'vue'
 import { listIssue, getIssue, addIssue, updateIssue, delIssue, syncIssue } from '@/api/rectification/issue'
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import MobileFilterBar from '@/components/MobileFilterBar/index.vue'
 
 const { proxy } = getCurrentInstance()
 
@@ -364,6 +436,13 @@ const data = reactive({
 })
 
 const { queryParams, form, rules } = toRefs(data)
+
+const mobileFilterCount = computed(() => [
+  queryParams.value.issueNo,
+  queryParams.value.sourceType,
+  queryParams.value.status,
+  queryParams.value.issueCategory
+].filter(value => value !== undefined && value !== null && value !== '').length)
 
 // 下拉选项
 const sourceTypeOptions = ref([
@@ -582,3 +661,324 @@ request({ url: '/rectification/issue/depts', method: 'get' }).then(res => {
   ]
 })
 </script>
+
+<style scoped lang="scss">
+.issue-mobile-list {
+  display: none;
+}
+
+.issue-card {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(36, 52, 75, 0.06);
+}
+
+.issue-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.issue-card-title {
+  min-width: 0;
+
+  strong {
+    display: block;
+    color: #1f2f46;
+    font-size: 15px;
+    line-height: 1.45;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    display: block;
+    margin-top: 4px;
+    color: #7a8798;
+    font-size: 12px;
+  }
+}
+
+.issue-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  padding: 12px 0;
+
+  span {
+    min-width: 0;
+  }
+
+  em {
+    display: block;
+    color: #8a96a8;
+    font-size: 12px;
+    line-height: 1.4;
+    font-style: normal;
+  }
+
+  b {
+    display: block;
+    margin-top: 3px;
+    color: #2c3e57;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.issue-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+
+  .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .issue-page {
+    padding: 12px;
+    background: #f5f7fb;
+  }
+
+  .desktop-query-form {
+    display: none;
+  }
+
+  .issue-page :deep(.el-form--inline) {
+    padding: 12px;
+    margin-bottom: 12px;
+    border: 1px solid #e3eaf4;
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .issue-page :deep(.el-form--inline .el-form-item) {
+    display: block;
+    margin-right: 0;
+    margin-bottom: 10px;
+  }
+
+  .issue-page :deep(.el-form--inline .el-form-item__label) {
+    display: block;
+    height: auto;
+    margin-bottom: 6px;
+    line-height: 1.4;
+    text-align: left;
+  }
+
+  .issue-page :deep(.el-form--inline .el-input),
+  .issue-page :deep(.el-form--inline .el-select) {
+    width: 100% !important;
+  }
+
+  .issue-page :deep(.el-form--inline .el-form-item:last-child .el-form-item__content) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .issue-page :deep(.el-form--inline .el-form-item:last-child .el-button) {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .issue-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .issue-toolbar :deep(.el-col) {
+    flex: 1;
+    max-width: none;
+    width: auto;
+  }
+
+  .issue-toolbar :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .issue-toolbar :deep(.right-toolbar) {
+    display: none;
+  }
+
+  .issue-table {
+    display: none;
+  }
+
+  .issue-mobile-list {
+    display: block;
+  }
+
+  .issue-page :deep(.pagination-container) {
+    margin-top: 12px;
+    padding: 10px 0 0;
+    background: transparent;
+  }
+
+  .issue-page :deep(.el-dialog) {
+    width: 94vw !important;
+    margin-top: 5vh !important;
+  }
+
+  .issue-page :deep(.el-dialog__body) {
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  .issue-page :deep(.el-form .el-row) {
+    display: block;
+  }
+
+  .issue-page :deep(.el-form .el-col) {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .issue-page :deep(.el-descriptions__table) {
+    display: block;
+  }
+
+  .issue-page :deep(.el-descriptions__body),
+  .issue-page :deep(.el-descriptions__table tbody),
+  .issue-page :deep(.el-descriptions__table tr),
+  .issue-page :deep(.el-descriptions__table th),
+  .issue-page :deep(.el-descriptions__table td) {
+    display: block;
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .issue-card-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .issue-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<style lang="scss">
+@media (max-width: 768px) {
+  .issue-form-dialog,
+  .issue-detail-dialog {
+    border-radius: 10px;
+
+    .el-dialog__header {
+      padding: 14px 16px 10px;
+      margin-right: 0;
+      border-bottom: 1px solid #eef2f7;
+    }
+
+    .el-dialog__title {
+      color: #1f2f46;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .el-dialog__body {
+      padding: 14px 16px;
+      background: #f7f9fc;
+    }
+
+    .el-dialog__footer {
+      padding: 10px 16px 16px;
+      border-top: 1px solid #eef2f7;
+      background: #ffffff;
+    }
+  }
+
+  .issue-form {
+    .el-row {
+      display: block;
+    }
+
+    .el-col {
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .el-form-item {
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #edf1f7;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    .el-form-item__label {
+      display: block;
+      width: 100% !important;
+      height: auto;
+      margin-bottom: 7px;
+      padding: 0;
+      color: #53627a;
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: left;
+    }
+
+    .el-form-item__content {
+      width: 100%;
+      margin-left: 0 !important;
+      line-height: 1.4;
+    }
+
+    .el-input,
+    .el-select,
+    .el-input-number,
+    .el-date-editor,
+    .el-textarea {
+      width: 100% !important;
+    }
+
+    .el-input__wrapper,
+    .el-textarea__inner {
+      min-height: 38px;
+      box-shadow: 0 0 0 1px #dfe5ef inset;
+      border-radius: 6px;
+    }
+
+    .el-textarea__inner {
+      padding-top: 8px;
+    }
+
+    .el-radio-group {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      width: 100%;
+    }
+
+    .el-radio {
+      height: 38px;
+      margin-right: 0;
+      padding: 0 10px;
+      border: 1px solid #dfe5ef;
+      border-radius: 6px;
+      background: #ffffff;
+    }
+  }
+}
+</style>

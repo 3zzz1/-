@@ -1,7 +1,7 @@
 <template>
-  <el-dialog :title="'分办责任人 - ' + taskInfo.taskNo" v-model="visible" width="800px" append-to-body :close-on-click-modal="false" @close="handleClose">
+  <el-dialog class="mobile-form-dialog assign-dialog" :title="'分办责任人 - ' + taskInfo.taskNo" v-model="visible" :width="dialogWidth" append-to-body :close-on-click-modal="false" @close="handleClose">
     <el-alert title="请为每一项问题指派具体的整改责任人" type="info" :closable="false" show-icon class="mb15" />
-    <el-table :data="issues" stripe max-height="400">
+    <el-table v-if="!isMobile" :data="issues" stripe max-height="400">
       <el-table-column label="问题编号" prop="issueNo" width="150" />
       <el-table-column label="问题标题" prop="issueTitle" min-width="200" show-overflow-tooltip />
       <el-table-column label="问题分类" width="90">
@@ -15,9 +15,34 @@
         </template>
       </el-table-column>
     </el-table>
+    <div v-else class="assign-mobile-list">
+      <div v-for="item in issues" :key="item.issueId" class="assign-mobile-card">
+        <div class="assign-card-head">
+          <span class="assign-issue-no">{{ item.issueNo || '-' }}</span>
+          <el-tag size="small">{{ catLabel(item.issueCategory) }}</el-tag>
+        </div>
+        <div class="assign-issue-title">{{ item.issueTitle || '未命名问题' }}</div>
+        <div class="assign-card-field">
+          <div class="assign-card-label">整改责任人</div>
+          <el-select
+            v-model="item.assignTo"
+            filterable
+            :disabled="item.assigned"
+            placeholder="选择责任人"
+            size="large"
+            style="width: 100%"
+          >
+            <el-option v-for="u in deptUsers" :key="u.userId" :label="u.nickName || u.userName" :value="u.userId" />
+          </el-select>
+        </div>
+      </div>
+      <el-empty v-if="!issues.length" description="暂无待分办问题" />
+    </div>
     <template #footer>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">确认分办</el-button>
-      <el-button @click="handleClose">取消</el-button>
+      <div class="dialog-footer">
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">确认分办</el-button>
+        <el-button @click="handleClose">取消</el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -28,11 +53,15 @@ import { getTask } from '@/api/rectification/task'
 import { getIssue } from '@/api/rectification/issue'
 import { addPlan } from '@/api/rectification/plan'
 import request from '@/utils/request'
+import useAppStore from '@/store/modules/app'
 
 const props = defineProps({ modelValue: Boolean, taskId: { type: Number, required: true } })
 const emit = defineEmits(['update:modelValue', 'success'])
 const { proxy } = getCurrentInstance()
+const appStore = useAppStore()
 const visible = computed({ get: () => props.modelValue, set: v => emit('update:modelValue', v) })
+const dialogWidth = computed(() => appStore.device === 'mobile' ? '94vw' : '800px')
+const isMobile = computed(() => appStore.device === 'mobile')
 const submitting = ref(false)
 const deptUsers = ref([])
 const taskInfo = reactive({ taskNo: '' })
@@ -89,4 +118,67 @@ function handleSubmit() {
 function handleClose() { issues.value = []; visible.value = false }
 </script>
 
-<style scoped>.mb15 { margin-bottom: 15px; }</style>
+<style scoped>
+.mb15 { margin-bottom: 15px; }
+
+@media (max-width: 768px) {
+  :deep(.el-dialog__body) {
+    padding: 12px;
+  }
+
+  .assign-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: min(62vh, 520px);
+    overflow-y: auto;
+    padding: 2px 2px 4px;
+  }
+
+  .assign-mobile-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 12px;
+    box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  }
+
+  .assign-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .assign-issue-no {
+    min-width: 0;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .assign-issue-title {
+    color: #111827;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.45;
+    margin-bottom: 12px;
+    word-break: break-word;
+  }
+
+  .assign-card-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .assign-card-label {
+    color: #475569;
+    font-size: 13px;
+  }
+}
+</style>

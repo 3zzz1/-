@@ -1,17 +1,32 @@
 <template>
-  <div class="app-container">
-    <div class="detail-header">
-      <el-page-header @back="goBack" :content="'任务详情 - ' + (taskInfo.taskNo || '')">
-        <template #title>
-          <el-button link icon="ArrowLeft" @click="goBack">返回任务列表</el-button>
-        </template>
-      </el-page-header>
-      <div class="header-actions">
-        <el-tag :type="taskStatusTag(taskInfo.status)" size="large">
+  <div class="app-container task-detail-page">
+    <header class="detail-header">
+      <div class="detail-header-bar">
+        <el-button link icon="ArrowLeft" @click="goBack">返回</el-button>
+        <el-tag :type="taskStatusTag(taskInfo.status)" effect="light">
           {{ taskStatusLabel(taskInfo.status) }}
         </el-tag>
       </div>
-    </div>
+      <div class="detail-heading">
+        <span>整改任务</span>
+        <h1>{{ issueInfo.issueTitle || '任务详情' }}</h1>
+        <p>{{ taskInfo.taskNo || '-' }}</p>
+      </div>
+      <div class="detail-summary">
+        <div>
+          <span>整改单位</span>
+          <strong>{{ rectifyDeptName }}</strong>
+        </div>
+        <div>
+          <span>联络人</span>
+          <strong>{{ taskInfo.contactPerson || '-' }}</strong>
+        </div>
+        <div>
+          <span>截止日期</span>
+          <strong :class="{ overdue: isTaskOverdue }">{{ taskInfo.deadline || '-' }}</strong>
+        </div>
+      </div>
+    </header>
 
     <el-tabs v-model="activeTab" type="border-card" class="detail-tabs">
       <el-tab-pane label="基本信息" name="basic">
@@ -22,12 +37,12 @@
                 <span class="card-title">任务信息</span>
               </div>
             </template>
-            <el-descriptions :column="2" border>
+            <el-descriptions v-if="!isMobile" :column="2" border>
               <el-descriptions-item label="任务编号">{{ taskInfo.taskNo || '-' }}</el-descriptions-item>
               <el-descriptions-item label="状态">
                 <el-tag :type="taskStatusTag(taskInfo.status)">{{ taskStatusLabel(taskInfo.status) }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="整改单位">{{ taskInfo.rectifyDeptName || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="整改单位">{{ rectifyDeptName }}</el-descriptions-item>
               <el-descriptions-item label="联络人">{{ taskInfo.contactPerson || '-' }}</el-descriptions-item>
               <el-descriptions-item label="联系电话">{{ taskInfo.contactPhone || '-' }}</el-descriptions-item>
               <el-descriptions-item label="截止日期">{{ taskInfo.deadline || '-' }}</el-descriptions-item>
@@ -35,6 +50,12 @@
               <el-descriptions-item label="接收时间">{{ taskInfo.confirmTime || '-' }}</el-descriptions-item>
               <el-descriptions-item label="整改要求" :span="2">{{ taskInfo.requirement || '-' }}</el-descriptions-item>
             </el-descriptions>
+            <div v-else class="compact-info-grid">
+              <div class="compact-info-wide"><span>联系电话</span><strong>{{ taskInfo.contactPhone || '-' }}</strong></div>
+              <div><span>下发时间</span><strong>{{ taskInfo.dispatchTime || '-' }}</strong></div>
+              <div><span>接收时间</span><strong>{{ taskInfo.confirmTime || '尚未接收' }}</strong></div>
+              <div class="compact-info-wide"><span>整改要求</span><strong>{{ taskInfo.requirement || '-' }}</strong></div>
+            </div>
           </el-card>
 
           <el-card shadow="never">
@@ -43,7 +64,7 @@
                 <span class="card-title">关联问题信息</span>
               </div>
             </template>
-            <el-descriptions v-if="issueInfo.issueNo" :column="2" border>
+            <el-descriptions v-if="issueInfo.issueNo && !isMobile" :column="2" border>
               <el-descriptions-item label="问题编号">{{ issueInfo.issueNo }}</el-descriptions-item>
               <el-descriptions-item label="来源类型">
                 <el-tag :type="sourceTypeTag(issueInfo.sourceType)">
@@ -55,7 +76,7 @@
                 <el-tag>{{ categoryLabel(issueInfo.issueCategory) }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="涉及金额">{{ formatAmount(issueInfo.issueAmount) }}</el-descriptions-item>
-              <el-descriptions-item label="责任单位">{{ issueInfo.responsibleDeptId || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="责任单位">{{ deptName(issueInfo.responsibleDeptId) }}</el-descriptions-item>
               <el-descriptions-item label="责任干部">{{ issueInfo.responsiblePerson || '-' }}</el-descriptions-item>
               <el-descriptions-item label="风险等级">
                 <el-tag :type="riskLevelTag(issueInfo.riskLevel)">{{ riskLevelLabel(issueInfo.riskLevel) }}</el-tag>
@@ -66,6 +87,27 @@
               <el-descriptions-item label="问题描述" :span="2">{{ issueInfo.issueDesc || '-' }}</el-descriptions-item>
               <el-descriptions-item label="定性法规依据" :span="2">{{ issueInfo.legalBasis || '-' }}</el-descriptions-item>
             </el-descriptions>
+            <template v-else-if="issueInfo.issueNo">
+              <div class="compact-info-grid">
+                <div><span>问题编号</span><strong>{{ issueInfo.issueNo }}</strong></div>
+                <div><span>来源类型</span><strong>{{ sourceTypeLabel(issueInfo.sourceType) }}</strong></div>
+                <div><span>问题分类</span><strong>{{ categoryLabel(issueInfo.issueCategory) }}</strong></div>
+                <div><span>涉及金额</span><strong>{{ formatAmount(issueInfo.issueAmount) }}</strong></div>
+                <div><span>责任干部</span><strong>{{ issueInfo.responsiblePerson || '-' }}</strong></div>
+                <div><span>风险等级</span><strong>{{ riskLevelLabel(issueInfo.riskLevel) }}</strong></div>
+                <div><span>问题状态</span><strong>{{ issueStatusLabel(issueInfo.status) }}</strong></div>
+              </div>
+              <el-collapse v-if="issueInfo.issueDesc || issueInfo.legalBasis" class="issue-detail-collapse">
+                <el-collapse-item title="查看问题说明与定性依据" name="issue-detail">
+                  <div class="collapsed-detail">
+                    <span>问题描述</span>
+                    <p>{{ issueInfo.issueDesc || '-' }}</p>
+                    <span>定性法规依据</span>
+                    <p>{{ issueInfo.legalBasis || '-' }}</p>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+            </template>
             <el-empty v-else description="暂无关联问题信息" />
           </el-card>
         </div>
@@ -83,7 +125,7 @@
           <el-divider />
           <div class="material-header">
             <span class="card-title">佐证材料附件</span>
-            <el-button type="primary" icon="Upload" size="small" @click="uploadOpen = true">上传佐证</el-button>
+            <el-button type="primary" icon="Upload" size="small" native-type="button" @click.prevent="uploadOpen = true">上传佐证</el-button>
           </div>
           <div v-if="materialList.length > 0" class="material-list">
             <el-tag
@@ -106,7 +148,7 @@
           />
           <div v-if="reportData.unitApproveStatus" class="approval-info">
             <el-divider content-position="left">单位负责人审批信息</el-divider>
-            <el-descriptions :column="2" border>
+            <el-descriptions :column="descriptionColumns" border>
               <el-descriptions-item label="审批结果">
                 <el-tag v-if="reportData.unitApproveStatus === '1'" type="success">通过</el-tag>
                 <el-tag v-else-if="reportData.unitApproveStatus === '2'" type="danger">驳回</el-tag>
@@ -149,13 +191,15 @@
 </template>
 
 <script setup name="TaskDetail">
-import { defineAsyncComponent, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTask } from '@/api/rectification/task'
 import { getIssue } from '@/api/rectification/issue'
 import { listMaterial, delMaterial } from '@/api/rectification/material'
 import { getReport } from '@/api/rectification/report'
+import useAppStore from '@/store/modules/app'
+import request from '@/utils/request'
 
 const PlanEditor = defineAsyncComponent(() => import('../plan/PlanEditor.vue'))
 const MaterialUpload = defineAsyncComponent(() => import('../material/MaterialUpload.vue'))
@@ -165,6 +209,9 @@ const TaskTimeline = defineAsyncComponent(() => import('./components/TaskTimelin
 
 const router = useRouter()
 const route = useRoute()
+const appStore = useAppStore()
+const isMobile = computed(() => appStore.device === 'mobile')
+const descriptionColumns = computed(() => isMobile.value ? 1 : 2)
 
 const taskId = ref(route.params.taskId)
 const activeTab = ref(route.query.tab || 'basic')
@@ -176,6 +223,13 @@ const issueInfo = ref({})
 const materialList = ref([])
 const reportData = ref({})
 const loading = ref(false)
+const deptList = ref([])
+
+const rectifyDeptName = computed(() => deptName(taskInfo.value.rectDeptId))
+const isTaskOverdue = computed(() => {
+  if (!taskInfo.value.deadline || ['3', '4'].includes(String(taskInfo.value.status))) return false
+  return new Date(taskInfo.value.deadline).getTime() < new Date().setHours(0, 0, 0, 0)
+})
 
 const taskStatusOptions = [
   { label: '待确认', value: '0' },
@@ -258,6 +312,20 @@ function formatAmount(amount) {
   return amount ? Number(amount).toLocaleString() : '-'
 }
 
+function deptName(deptId) {
+  if (!deptId) return '-'
+  const dept = deptList.value.find(item => String(item.deptId) === String(deptId))
+  return dept ? dept.deptName : String(deptId)
+}
+
+function loadDeptList() {
+  request({ url: '/rectification/issue/depts', method: 'get' }).then(response => {
+    deptList.value = Array.isArray(response.data) ? response.data : []
+  }).catch(() => {
+    deptList.value = []
+  })
+}
+
 function parseFirstIssueId(issueIds) {
   try {
     const ids = JSON.parse((issueIds || '[]').replace(/'/g, '"'))
@@ -323,21 +391,90 @@ function goBack() {
 }
 
 onMounted(() => {
+  loadDeptList()
   loadTaskInfo()
 })
 </script>
 
 <style scoped>
 .detail-header {
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e9f2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(42, 60, 84, 0.05);
+}
+
+.detail-header-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  min-height: 28px;
 }
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+
+.detail-header-bar .el-button {
+  margin-left: 0;
+  padding: 0;
+}
+
+.detail-heading {
+  padding: 15px 0 16px;
+}
+
+.detail-heading > span {
+  color: #7b899b;
+  font-size: 12px;
+}
+
+.detail-heading h1 {
+  margin: 5px 0 4px;
+  color: #1f2f46;
+  font-size: 21px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.detail-heading p {
+  margin: 0;
+  color: #8290a3;
+  font-size: 12px;
+}
+
+.detail-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid #edf1f6;
+}
+
+.detail-summary > div {
+  min-width: 0;
+  padding: 13px 14px 0 0;
+}
+
+.detail-summary span,
+.detail-summary strong {
+  display: block;
+  line-height: 1.4;
+}
+
+.detail-summary span {
+  color: #8995a6;
+  font-size: 11px;
+}
+
+.detail-summary strong {
+  margin-top: 3px;
+  color: #33465e;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-summary strong.overdue {
+  color: #d94a45;
 }
 .detail-tabs {
   margin-top: 10px;
@@ -365,4 +502,147 @@ onMounted(() => {
 .mb20 {
   margin-bottom: 20px;
 }
+
+.compact-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #e5eaf1;
+}
+
+.compact-info-grid > div {
+  min-width: 0;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.compact-info-grid span,
+.compact-info-grid strong {
+  display: block;
+  line-height: 1.4;
+}
+
+.compact-info-grid span {
+  color: #8995a6;
+  font-size: 11px;
+}
+
+.compact-info-grid strong {
+  margin-top: 3px;
+  color: #33465e;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.compact-info-wide {
+  grid-column: 1 / -1;
+}
+
+.compact-info-grid > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+.issue-detail-collapse {
+  margin-top: 10px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+}
+
+.issue-detail-collapse :deep(.el-collapse-item__header) {
+  min-height: 42px;
+  height: auto;
+  padding: 0 12px;
+  border: 0;
+  color: #52657d;
+  line-height: 1.4;
+}
+
+.issue-detail-collapse :deep(.el-collapse-item__wrap) {
+  border: 0;
+}
+
+.issue-detail-collapse :deep(.el-collapse-item__content) {
+  padding: 0 12px 12px;
+}
+
+.collapsed-detail span {
+  color: #7f8d9f;
+  font-size: 12px;
+}
+
+.collapsed-detail p {
+  margin: 4px 0 12px;
+  color: #34465e;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .task-detail-page {
+    padding: 12px;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom));
+    background: #f5f7fb;
+  }
+
+  .detail-header {
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .card-header,
+  .material-header {
+    width: 100%;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .detail-tabs {
+    margin-top: 0;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .detail-tabs :deep(.el-tabs__header) {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .detail-tabs :deep(.el-tabs__nav) {
+    display: flex;
+    float: none;
+    width: max-content;
+  }
+
+  .detail-tabs :deep(.el-tabs__item) {
+    flex: 0 0 auto;
+    padding: 0 14px;
+  }
+
+  .tab-content {
+    padding: 4px 0;
+  }
+
+  .material-tag {
+    max-width: 100%;
+    white-space: normal;
+    height: auto;
+    line-height: 1.5;
+  }
+
+  .detail-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-summary > div:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 </style>

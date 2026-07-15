@@ -4,9 +4,10 @@
       :background="background"
       v-model:current-page="currentPage"
       v-model:page-size="pageSize"
-      :layout="layout"
+      :layout="resolvedLayout"
       :page-sizes="pageSizes"
-      :pager-count="pagerCount"
+      :pager-count="resolvedPagerCount"
+      :small="isMobile"
       :total="total"
       @size-change="handleSizeChange"
       @current-change="handleCurrentChange"
@@ -15,6 +16,7 @@
 </template>
 
 <script setup>
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { scrollTo } from '@/utils/scroll-to'
 
 const props = defineProps({
@@ -60,6 +62,17 @@ const props = defineProps({
 })
 
 const emit = defineEmits();
+const isMobile = ref(window.innerWidth <= 768)
+const resolvedLayout = computed(() => isMobile.value ? 'prev, pager, next' : props.layout)
+const resolvedPagerCount = computed(() => isMobile.value ? 5 : props.pagerCount)
+
+function handleViewportChange() {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => window.addEventListener('resize', handleViewportChange))
+onBeforeUnmount(() => window.removeEventListener('resize', handleViewportChange))
+
 const currentPage = computed({
   get() {
     return props.page
@@ -101,5 +114,36 @@ function handleCurrentChange(val) {
 }
 .pagination-container.hidden {
   display: none;
+}
+
+@media (max-width: 768px) {
+  .pagination-container {
+    box-sizing: border-box;
+    width: 100%;
+    height: auto;
+    min-height: 48px;
+    margin: 12px 0 0;
+    padding: 10px 0 !important;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .pagination-container :deep(.el-pagination) {
+    position: static !important;
+    right: auto !important;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 0;
+    white-space: nowrap;
+  }
+
+  .pagination-container :deep(.btn-prev),
+  .pagination-container :deep(.btn-next),
+  .pagination-container :deep(.el-pager li) {
+    flex: 0 0 auto;
+    min-width: 28px;
+    margin: 0 2px;
+  }
 }
 </style>

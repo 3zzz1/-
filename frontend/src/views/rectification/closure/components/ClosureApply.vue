@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog closure-apply-dialog"
     v-model="visible"
     title="申请销号"
     width="650px"
@@ -7,7 +8,7 @@
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="120px">
+    <el-form class="mobile-dialog-form" ref="formRef" :model="form" :rules="rules" label-width="120px">
       <el-form-item label="问题标题">
         <el-input v-model="form.issueTitle" disabled />
       </el-form-item>
@@ -148,7 +149,7 @@ async function saveBlob(blob, filename) {
     proxy.$modal.msgError(data.msg || '下载失败')
     return
   }
-  saveAs(new Blob([blob]), filename)
+  saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), filename)
 }
 
 function reportFileName(response, fallback) {

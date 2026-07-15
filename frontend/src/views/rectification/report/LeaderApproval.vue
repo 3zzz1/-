@@ -1,8 +1,9 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog leader-approval-dialog"
     v-model="visible"
     title="单位负责人审批"
-    width="750px"
+    :width="dialogWidth"
     append-to-body
     :close-on-click-modal="false"
     @close="handleClose"
@@ -52,7 +53,7 @@
 
     <el-divider v-if="approvalInfo.unitApproveStatus" />
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form class="mobile-dialog-form" ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="审批结果" prop="result">
         <el-radio-group v-model="form.result">
           <el-radio label="approved">
@@ -69,7 +70,7 @@
           v-model="form.opinion"
           type="textarea"
           :rows="4"
-          placeholder="请输入审批意见"
+          placeholder="可选，未填写时默认为“同意”"
           maxlength="500"
           show-word-limit
         />
@@ -90,13 +91,14 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button
-          :type="form.result === 'approved' ? 'success' : 'danger'"
+          :type="submitButtonType"
           :loading="submitLoading"
+          native-type="button"
           @click="handleSubmit"
         >
-          {{ form.result === 'approved' ? '审批通过' : '审批驳回' }}
+          {{ submitButtonText }}
         </el-button>
-        <el-button @click="handleClose">取消</el-button>
+        <el-button native-type="button" @click="handleClose">取消</el-button>
       </div>
     </template>
   </el-dialog>
@@ -108,6 +110,7 @@ import { saveAs } from 'file-saver'
 import { leaderApprove, downloadReportWord } from '@/api/rectification/report'
 import { downloadMaterial } from '@/api/rectification/material'
 import useUserStore from '@/store/modules/user'
+import useAppStore from '@/store/modules/app'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -121,6 +124,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'success'])
 const { proxy } = getCurrentInstance()
 const userStore = useUserStore()
+const appStore = useAppStore()
 
 const formRef = ref(null)
 const submitLoading = ref(false)
@@ -132,6 +136,17 @@ const visible = computed({
 
 const taskId = computed(() => props.taskId)
 const approvalInfo = computed(() => props.report || {})
+const dialogWidth = computed(() => appStore.device === 'mobile' ? '94vw' : '750px')
+const submitButtonText = computed(() => {
+  if (form.result === 'approved') return '审批通过'
+  if (form.result === 'rejected') return '审批驳回'
+  return '审批'
+})
+const submitButtonType = computed(() => {
+  if (form.result === 'approved') return 'success'
+  if (form.result === 'rejected') return 'danger'
+  return 'primary'
+})
 
 const form = reactive({
   reportId: props.reportId,
@@ -142,7 +157,6 @@ const form = reactive({
 
 const rules = reactive({
   result: [{ required: true, message: '请选择审批结果', trigger: 'change' }],
-  opinion: [{ required: true, message: '请输入审批意见', trigger: 'blur' }],
   rejectReason: [
     { required: true, message: '请输入驳回原因', trigger: 'blur' }
   ]
@@ -217,17 +231,11 @@ function currentUserReportName() {
 }
 
 function fillLastApproval() {
-  const report = props.report || {}
   form.reportId = props.reportId
-  if (report.unitApproveStatus === '1') {
-    form.result = 'approved'
-    form.opinion = report.unitApproveOpinion || ''
-    form.rejectReason = ''
-  } else if (report.unitApproveStatus === '2') {
-    form.result = 'rejected'
-    form.rejectReason = report.unitApproveOpinion || ''
-    form.opinion = ''
-  }
+  form.result = ''
+  form.opinion = ''
+  form.rejectReason = ''
+  formRef.value?.clearValidate()
 }
 
 function handleDownloadMaterial(row) {
@@ -253,35 +261,43 @@ async function saveMaterialBlob(blob, filename) {
     proxy.$modal.msgError(data.msg || '下载失败')
     return
   }
-  saveAs(new Blob([blob]), filename)
+  saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), filename)
 }
 
 async function handleSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate(valid => {
-    if (!valid) return
+  if (!form.result) {
+    proxy.$modal.msgWarning('请先选择“通过”或“驳回”')
+    return
+  }
+  if (form.result === 'rejected' && !form.rejectReason.trim()) {
+    proxy.$modal.msgWarning('请输入驳回原因')
+    return
+  }
 
+  try {
+    await formRef.value.validate()
     const isApproved = form.result === 'approved'
     const actionText = isApproved ? '通过' : '驳回'
-    proxy.$modal.confirm(`确认${actionText}该整改报告吗？`, '审批确认', {
+    await proxy.$modal.confirm(`确认${actionText}该整改报告吗？`, '审批确认', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: isApproved ? 'success' : 'warning'
-    }).then(() => {
-      submitLoading.value = true
-      return leaderApprove({
-        reportId: form.reportId,
-        approveResult: isApproved ? '1' : '2',
-        approveOpinion: isApproved ? form.opinion : (form.rejectReason || form.opinion)
-      })
-    }).then(() => {
-      proxy.$modal.msgSuccess(`报告已${actionText}`)
-      emit('success')
-      handleClose()
-    }).finally(() => {
-      submitLoading.value = false
     })
-  })
+    submitLoading.value = true
+    await leaderApprove({
+      reportId: form.reportId,
+      approveResult: isApproved ? '1' : '2',
+      approveOpinion: isApproved ? (form.opinion.trim() || '同意') : form.rejectReason.trim()
+    })
+    proxy.$modal.msgSuccess(`报告已${actionText}`)
+    emit('success')
+    handleClose()
+  } catch (error) {
+    // 取消确认框或表单校验失败时保持弹窗开启。
+  } finally {
+    submitLoading.value = false
+  }
 }
 
 function handleClose() {
@@ -327,5 +343,19 @@ function handleClose() {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .material-actions,
+  .dialog-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .material-actions .el-button,
+  .dialog-footer .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
 }
 </style>

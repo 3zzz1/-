@@ -3,6 +3,8 @@ package com.audit.rectification.controller;
 import java.io.File;
 import java.io.FileInputStream;
 import java.net.URLEncoder;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -107,10 +109,32 @@ public class RectMaterialController extends BaseController {
         if (m == null) throw new RuntimeException("Attachment record not found");
         java.io.File f = new java.io.File(m.getFilePath());
         if (!f.exists()) throw new RuntimeException("Physical file not found: " + m.getFileName());
-        response.setContentType("application/octet-stream");
-        response.setHeader("Content-Disposition", "attachment; filename=" + java.net.URLEncoder.encode(m.getFileName(), "UTF-8"));
-        java.io.FileInputStream fis = new java.io.FileInputStream(f);
-        org.apache.commons.io.IOUtils.copy(fis, response.getOutputStream());
-        fis.close();
+        response.setContentType(resolveContentType(m.getFileName()));
+        response.setContentLengthLong(f.length());
+        response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+        response.setHeader("Content-Disposition", buildContentDisposition(m.getFileName()));
+        try (java.io.FileInputStream fis = new java.io.FileInputStream(f)) {
+            org.apache.commons.io.IOUtils.copy(fis, response.getOutputStream());
+        }
+    }
+
+    private String buildContentDisposition(String fileName) {
+        String safeName = fileName == null || fileName.trim().isEmpty() ? "download" : fileName.trim();
+        String encoded = URLEncoder.encode(safeName, StandardCharsets.UTF_8).replace("+", "%20");
+        return "attachment; filename=\"download\"; filename*=UTF-8''" + encoded;
+    }
+
+    private String resolveContentType(String fileName) {
+        String detected = URLConnection.guessContentTypeFromName(fileName);
+        if (detected != null && !detected.trim().isEmpty()) {
+            return detected;
+        }
+        String lowerName = fileName == null ? "" : fileName.toLowerCase();
+        if (lowerName.endsWith(".webp")) return "image/webp";
+        if (lowerName.endsWith(".svg")) return "image/svg+xml";
+        if (lowerName.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        if (lowerName.endsWith(".xlsx")) return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+        if (lowerName.endsWith(".pdf")) return "application/pdf";
+        return "application/octet-stream";
     }
 }

@@ -58,4 +58,20 @@ public interface RectTaskMapper {
      * @return 任务集合
      */
     public List<RectTask> selectRectTaskListByDeptId(Long deptId);
+
+    /**
+     * 查询单位负责人可审批或追溯的已提交报告任务
+     *
+     * @param deptId 部门ID
+     * @return 任务集合
+     */
+    public List<RectTask> selectRectTaskListForUnitLeader(Long deptId);
+
+    /**
+     * 按整改责任人查询已分办任务列表
+     *
+     * @param userId 责任人用户ID
+     * @return 任务集合
+     */
+    public List<RectTask> selectRectTaskListByResponsibleUserId(Long userId);
 }

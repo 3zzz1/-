@@ -10,14 +10,16 @@
 
         <el-dropdown trigger="click" placement="bottom-end" @visible-change="handleNoticeVisible">
           <div class="notice-trigger right-menu-item hover-effect">
-            <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
-              <el-icon :size="19"><Bell /></el-icon>
-            </el-badge>
+            <el-icon :size="20"><Bell /></el-icon>
+            <span v-if="unreadCount > 0" class="notice-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
           </div>
           <template #dropdown>
             <div class="notice-dropdown">
               <div class="notice-header">
-                <strong>消息通知</strong>
+                <div>
+                  <strong>消息通知</strong>
+                  <span v-if="unreadCount"> {{ unreadCount }} 条未读</span>
+                </div>
                 <el-button link type="primary" size="small" :disabled="unreadCount === 0" @click.stop="markAllRead">
                   全部已读
                 </el-button>
@@ -32,7 +34,7 @@
                 >
                   <div class="notice-title">{{ item.title || '消息提醒' }}</div>
                   <div class="notice-content">{{ item.content || '-' }}</div>
-                  <div class="notice-time">{{ item.createTime || item.sendTime || '' }}</div>
+                  <div class="notice-time">{{ item.sendTime || item.createTime || '' }}</div>
                 </div>
               </div>
               <el-empty v-else description="暂无消息" :image-size="72" />
@@ -46,6 +48,15 @@
           <size-select id="size-select" class="right-menu-item hover-effect" />
         </el-tooltip>
       </template>
+
+      <div
+        v-if="appStore.device === 'mobile'"
+        class="mobile-notice-trigger right-menu-item hover-effect"
+        @click="openMobileNotice"
+      >
+        <el-icon :size="21"><Bell /></el-icon>
+        <span v-if="unreadCount > 0" class="notice-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
+      </div>
 
       <div class="avatar-container">
         <el-dropdown @command="handleCommand" class="right-menu-item hover-effect" trigger="click">
@@ -69,13 +80,46 @@
         </el-dropdown>
       </div>
     </div>
+
+    <el-drawer
+      v-model="mobileNoticeOpen"
+      title="消息通知"
+      direction="btt"
+      size="86%"
+      append-to-body
+      class="mobile-notice-drawer"
+      @open="loadMobileNotice"
+    >
+      <div class="mobile-notice-panel">
+        <div class="mobile-notice-summary">
+          <span>{{ unreadCount > 0 ? unreadCount + ' 条未读消息' : '暂无未读消息' }}</span>
+          <el-button link type="primary" :disabled="unreadCount === 0" @click="markAllRead">
+            全部已读
+          </el-button>
+        </div>
+        <div v-if="noticeList.length" class="mobile-notice-list">
+          <div
+            v-for="item in noticeList"
+            :key="item.notificationId"
+            class="mobile-notice-item"
+            :class="{ unread: item.readStatus !== '1' }"
+            @click="openNotice(item)"
+          >
+            <div class="mobile-notice-title">{{ item.title || '消息提醒' }}</div>
+            <div class="mobile-notice-content">{{ item.content || '-' }}</div>
+            <div class="mobile-notice-time">{{ item.sendTime || item.createTime || '' }}</div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无消息" :image-size="86" />
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElNotification } from 'element-plus'
 import Breadcrumb from '@/components/Breadcrumb'
 import TopNav from '@/components/TopNav'
 import Hamburger from '@/components/Hamburger'
@@ -93,7 +137,10 @@ const userStore = useUserStore()
 const settingsStore = useSettingsStore()
 const unreadCount = ref(0)
 const noticeList = ref([])
+const mobileNoticeOpen = ref(false)
 let noticeTimer = null
+let initializedNotice = false
+let latestNoticeId = null
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -124,15 +171,87 @@ function logout() {
   }).catch(() => {})
 }
 
-function loadUnreadCount() {
+function loadUnreadCount(showTip = false) {
   getUnreadCount().then(res => {
-    unreadCount.value = Number(res.data || 0)
+    const nextCount = Number(res.data || 0)
+    const previousCount = unreadCount.value
+    unreadCount.value = nextCount
+
+    if (!initializedNotice) {
+      initializedNotice = true
+      if (nextCount > 0 && showTip && !sessionStorage.getItem('rect_notice_login_tip')) {
+        sessionStorage.setItem('rect_notice_login_tip', '1')
+        showUnreadTip(nextCount)
+      }
+      return
+    }
+
+    if (nextCount > previousCount) {
+      loadNoticeList(true)
+    }
   }).catch(() => {})
 }
 
-function loadNoticeList() {
+function refreshNoticeState() {
+  getUnreadCount().then(res => {
+    unreadCount.value = Number(res.data || 0)
+  }).catch(() => {})
+
+  listMyNotification({ pageNum: 1, pageSize: 8 }).then(res => {
+    const rows = res.rows || []
+    const newest = rows[0]
+    noticeList.value = rows
+
+    if (!newest || !newest.notificationId) {
+      return
+    }
+
+    if (latestNoticeId === null) {
+      latestNoticeId = newest.notificationId
+      return
+    }
+
+    if (Number(newest.notificationId) > Number(latestNoticeId)) {
+      latestNoticeId = newest.notificationId
+      showLatestNoticeTip(newest)
+    }
+  }).catch(() => {})
+}
+
+function showUnreadTip(count) {
+  ElNotification({
+    title: '站内消息提醒',
+    message: `你有 ${count} 条未读消息，请及时处理。`,
+    type: 'info',
+    duration: 5000,
+    position: 'top-right'
+  })
+}
+
+function showLatestNoticeTip(item) {
+  ElNotification({
+    title: item?.title || '新消息提醒',
+    message: item?.content || '你收到一条新的站内消息，请及时处理。',
+    type: 'info',
+    duration: 6000,
+    position: 'top-right',
+    onClick: () => {
+      if (item) {
+        openNotice(item)
+      }
+    }
+  })
+}
+
+function loadNoticeList(showLatestTip = false) {
   listMyNotification({ pageNum: 1, pageSize: 8 }).then(res => {
     noticeList.value = res.rows || []
+    if (noticeList.value.length && noticeList.value[0].notificationId) {
+      latestNoticeId = noticeList.value[0].notificationId
+    }
+    if (showLatestTip && noticeList.value.length) {
+      showLatestNoticeTip(noticeList.value[0])
+    }
   }).catch(() => {})
 }
 
@@ -141,6 +260,15 @@ function handleNoticeVisible(visible) {
     loadNoticeList()
     loadUnreadCount()
   }
+}
+
+function openMobileNotice() {
+  mobileNoticeOpen.value = true
+}
+
+function loadMobileNotice() {
+  loadNoticeList()
+  loadUnreadCount()
 }
 
 function openNotice(item) {
@@ -153,7 +281,11 @@ function openNotice(item) {
     }).catch(() => {})
   }
   if (taskId) {
-    router.push('/rectification/task-page/detail/' + taskId)
+    mobileNoticeOpen.value = false
+    router.push({ path: '/rectification/my-tasks', query: { taskId } }).catch(() => {})
+  } else if (item.issueId) {
+    mobileNoticeOpen.value = false
+    router.push('/rectification/my-tasks').catch(() => {})
   }
 }
 
@@ -177,15 +309,24 @@ function setLayout() {
 }
 
 onMounted(() => {
-  loadUnreadCount()
-  noticeTimer = window.setInterval(loadUnreadCount, 60000)
+  loadUnreadCount(true)
+  loadNoticeList()
+  noticeTimer = window.setInterval(refreshNoticeState, 5000)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   if (noticeTimer) {
     window.clearInterval(noticeTimer)
   }
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
+
+function handleVisibilityChange() {
+  if (!document.hidden) {
+    refreshNoticeState()
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -276,43 +417,86 @@ onBeforeUnmount(() => {
 
 .notice-trigger {
   width: 42px;
+  position: relative;
+  color: #4b5563;
+}
+
+.mobile-notice-trigger {
+  width: 44px;
+  position: relative;
+  color: #334155;
+}
+
+.notice-badge {
+  position: absolute;
+  top: 7px;
+  right: 4px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f56c6c;
+  border: 2px solid #fff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(245, 108, 108, 0.32);
+  pointer-events: none;
 }
 
 .notice-dropdown {
-  width: 340px;
-  max-height: 430px;
+  width: 360px;
+  max-height: 450px;
   overflow: hidden;
 }
 
 .notice-header {
-  height: 42px;
-  padding: 0 12px;
+  height: 46px;
+  padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid #ebeef5;
+
+  strong {
+    color: #303133;
+    font-size: 14px;
+  }
+
+  span {
+    color: #909399;
+    font-size: 12px;
+  }
 }
 
 .notice-list {
-  max-height: 360px;
+  max-height: 370px;
   overflow-y: auto;
 }
 
 .notice-item {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid #f0f2f5;
   cursor: pointer;
+  transition: background 0.18s ease;
 
   &:hover {
     background: #f7f9fc;
   }
 
+  &.unread {
+    background: #f8fbff;
+  }
+
   &.unread .notice-title::before {
     content: '';
     display: inline-block;
-    width: 6px;
-    height: 6px;
-    margin-right: 6px;
+    width: 7px;
+    height: 7px;
+    margin-right: 7px;
     border-radius: 50%;
     background: #f56c6c;
     vertical-align: middle;
@@ -327,16 +511,119 @@ onBeforeUnmount(() => {
 }
 
 .notice-content {
-  margin-top: 4px;
+  margin-top: 5px;
   color: #606266;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
   word-break: break-all;
 }
 
 .notice-time {
-  margin-top: 6px;
+  margin-top: 7px;
   color: #a8abb2;
   font-size: 12px;
+}
+
+:global(.mobile-notice-drawer) {
+  border-radius: 14px 14px 0 0;
+}
+
+:global(.mobile-notice-drawer .el-drawer__header) {
+  margin-bottom: 0;
+  padding: 16px 16px 10px;
+  color: #111827;
+  font-weight: 700;
+}
+
+:global(.mobile-notice-drawer .el-drawer__body) {
+  padding: 0 12px 16px;
+  background: #f8fafc;
+  overflow: hidden;
+}
+
+.mobile-notice-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.mobile-notice-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  padding: 8px 4px 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.mobile-notice-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 8px;
+}
+
+.mobile-notice-item {
+  position: relative;
+  padding: 13px 13px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+
+  &.unread {
+    border-color: #bfdbfe;
+    background: #f8fbff;
+  }
+
+  &.unread::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    right: 14px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ef4444;
+  }
+}
+
+.mobile-notice-title {
+  padding-right: 18px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.mobile-notice-content {
+  margin-top: 6px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+.mobile-notice-time {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .navbar .right-menu .avatar-container {
+    margin-right: 12px;
+  }
+
+  .navbar .right-menu .avatar-container .avatar-wrapper .user-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+  }
 }
 </style>

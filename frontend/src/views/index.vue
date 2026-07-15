@@ -2,27 +2,30 @@
   <div class="app-container role-home">
     <section class="home-header">
       <div>
-        <div class="eyebrow">{{ currentHome.badge }}</div>
         <h1>{{ currentHome.title }}</h1>
-        <p>{{ currentHome.subtitle }}</p>
+        <p>{{ currentHome.desc }}</p>
       </div>
-      <div class="role-panel">
-        <span>当前首页</span>
-        <strong>{{ currentHome.name }}</strong>
+      <div class="header-actions">
+        <el-button type="primary" @click="go(currentHome.primary.path)">
+          {{ currentHome.primary.text }}
+        </el-button>
+        <el-button plain @click="go(currentHome.secondary.path)">
+          {{ currentHome.secondary.text }}
+        </el-button>
       </div>
     </section>
 
     <el-row :gutter="16" class="metric-row">
-      <el-col v-for="item in currentHome.metrics" :key="item.key" :xs="24" :sm="12" :lg="6">
-        <div class="metric-card" @click="go(item.path)">
-          <div class="metric-icon" :class="item.tone">
-            <el-icon :size="24"><component :is="item.icon" /></el-icon>
-          </div>
-          <div class="metric-content">
-            <div class="metric-value">{{ displayValue(item.value) }}</div>
-            <div class="metric-label">{{ item.label }}</div>
-          </div>
-        </div>
+      <el-col v-for="item in metrics" :key="item.key" :xs="12" :sm="12" :lg="6">
+        <button class="metric-card" type="button" @click="go(item.path)">
+          <span class="metric-icon" :class="item.tone">
+            <el-icon :size="22"><component :is="item.icon" /></el-icon>
+          </span>
+          <span class="metric-copy">
+            <strong>{{ item.value }}</strong>
+            <em>{{ item.label }}</em>
+          </span>
+        </button>
       </el-col>
     </el-row>
 
@@ -30,65 +33,60 @@
       <el-col :xs="24" :lg="16">
         <section class="panel">
           <div class="panel-header">
-            <h2>{{ currentHome.workTitle }}</h2>
-            <el-button type="primary" plain size="small" @click="go(currentHome.primaryAction.path)">
-              {{ currentHome.primaryAction.text }}
-            </el-button>
+            <div>
+              <h2>{{ currentHome.workTitle }}</h2>
+              <p>{{ currentHome.workDesc }}</p>
+            </div>
           </div>
-          <el-row :gutter="12">
-            <el-col v-for="item in currentHome.actions" :key="item.title" :xs="24" :sm="12">
-              <button class="action-item" type="button" @click="go(item.path)">
-                <span class="action-icon" :class="item.tone">
-                  <el-icon :size="20"><component :is="item.icon" /></el-icon>
-                </span>
-                <span>
-                  <strong>{{ item.title }}</strong>
-                  <em>{{ item.desc }}</em>
-                </span>
-              </button>
-            </el-col>
-          </el-row>
+
+          <div class="action-grid">
+            <button v-for="item in currentHome.actions" :key="item.title" class="action-item" type="button" @click="go(item.path)">
+              <span class="action-icon" :class="item.tone">
+                <el-icon :size="20"><component :is="item.icon" /></el-icon>
+              </span>
+              <span>
+                <strong>{{ item.title }}</strong>
+                <em>{{ item.desc }}</em>
+              </span>
+            </button>
+          </div>
         </section>
       </el-col>
 
       <el-col :xs="24" :lg="8">
-        <section class="panel">
-          <div class="panel-header">
-            <h2>待关注事项</h2>
-          </div>
-          <div class="todo-list">
-            <div v-for="item in currentHome.todos" :key="item.label" class="todo-item">
-              <span>{{ item.label }}</span>
-              <strong>{{ displayValue(item.value) }}</strong>
+        <section class="panel todo-panel">
+          <div class="panel-header compact">
+            <div>
+              <h2>{{ currentHome.todoTitle }}</h2>
+              <p>{{ currentHome.todoDesc }}</p>
             </div>
+          </div>
+
+          <div class="todo-list">
+            <button v-for="item in currentTodos" :key="item.label" class="todo-item" type="button" @click="go(item.path)">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </button>
+          </div>
+
+          <div v-if="recentTasks.length" class="recent-list">
+            <div class="recent-title">最近任务</div>
+            <button v-for="task in recentTasks" :key="task.taskId" class="recent-item" type="button" @click="goTaskDetail(task)">
+              <span>{{ task.taskNo || ('任务' + task.taskId) }}</span>
+              <em>{{ task.statusLabel || '-' }}</em>
+            </button>
           </div>
         </section>
       </el-col>
     </el-row>
-
-    <section class="panel process-panel">
-      <div class="panel-header">
-        <h2>{{ currentHome.processTitle }}</h2>
-      </div>
-      <el-steps :active="currentHome.activeStep" finish-status="success" align-center>
-        <el-step
-          v-for="step in currentHome.steps"
-          :key="step.title"
-          :title="step.title"
-          :description="step.desc"
-        />
-      </el-steps>
-    </section>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, unref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import useUserStore from '@/store/modules/user'
 import { getOverview } from '@/api/rectification/statistics'
-import { listTask, listMyTask } from '@/api/rectification/task'
-import { listClosure } from '@/api/rectification/closure'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -98,220 +96,153 @@ const overview = reactive({
   inProgress: 0,
   completed: 0,
   overdue: 0,
-  completionRate: '0%',
-  overdueRate: '0%',
-  recoveryAmount: '0.00'
-})
-
-const pending = reactive({
   tasks: 0,
   myTasks: 0,
   closures: 0
 })
+const recentTasks = ref([])
 
 const roles = computed(() => userStore.roles || [])
-
 const homeType = computed(() => {
   if (hasAnyRole(['admin', 'audit_director', 'audit_lead'])) return 'auditManager'
   if (hasAnyRole(['audited_unit_leader'])) return 'unitLeader'
   if (hasAnyRole(['audited_unit_liaison'])) return 'liaison'
   if (hasAnyRole(['rect_responsible'])) return 'rectifier'
-  if (hasAnyRole(['social_audit', 'intermediary', 'agency_auditor', 'audit_agency'])) return 'agency'
   return 'auditor'
 })
 
-const currentHome = computed(() => homeConfigs[homeType.value] || homeConfigs.auditor)
+const currentHome = computed(() => homes[homeType.value] || homes.auditor)
+const metrics = computed(() => currentHome.value.metrics())
+const currentTodos = computed(() => currentHome.value.todos())
 
-const homeConfigs = {
+const homes = {
   auditManager: {
-    name: '审计处管理首页',
-    badge: '全校整改监督',
-    title: '整改数据分析与销号审核',
-    subtitle: '集中查看全校问题整改、逾期预警、销号审核和高频风险领域。',
-    workTitle: '审计处工作入口',
-    processTitle: '审计处监督闭环',
-    primaryAction: { text: '进入整改分析', path: '/rectification/statistics' },
-    activeStep: 4,
-    metrics: baseMetrics(),
-    todos: [
-      { label: '待审核销号申请', value: valueOf(() => pending.closures) },
-      { label: '整改中任务', value: valueOf(() => overview.inProgress) },
-      { label: '逾期问题', value: valueOf(() => overview.overdue) }
+    title: '审计整改监督工作台',
+    desc: '集中处理待下发问题、整改任务跟踪、销号审核和整改成效分析。',
+    workTitle: '审计处待办入口',
+    workDesc: 'admin、审计处长、主审/组长在这里处理全校整改监督事项。',
+    todoTitle: '审计待办',
+    todoDesc: '优先处理需要审计处操作的事项。',
+    primary: { text: '审计待办', path: '/rectification/my-tasks' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => [
+      metric('issues', '问题总数', overview.totalIssues, 'List', '/rectification/issue', 'blue'),
+      metric('tasks', '整改任务', overview.tasks, 'EditPen', '/rectification/task', 'amber'),
+      metric('closures', '待审销号', overview.closures, 'CircleCheck', '/rectification/closure', 'green'),
+      metric('overdue', '逾期预警', overview.overdue, 'WarningFilled', '/rectification/statistics', 'red')
+    ],
+    todos: () => [
+      { label: '待审销号申请', value: overview.closures, path: '/rectification/closure' },
+      { label: '整改任务跟踪', value: overview.tasks, path: '/rectification/task' },
+      { label: '逾期问题预警', value: overview.overdue, path: '/rectification/statistics' }
     ],
     actions: [
-      { title: '问题台账', desc: '查看和维护全部审计整改问题', icon: 'List', path: '/rectification/issue', tone: 'blue' },
-      { title: '整改任务', desc: '下发、跟踪和复核整改任务', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
-      { title: '销号审核', desc: '审核整改材料和销号申请', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
-      { title: '多维分析', desc: '查看完成率、逾期率和风险分布', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'gray' }
-    ],
-    steps: auditSteps()
+      { title: '问题台账', desc: '维护审计发现问题，并下发整改任务。', icon: 'List', path: '/rectification/issue', tone: 'blue' },
+      { title: '整改任务', desc: '查看任务下发、确认、分办和整改进度。', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
+      { title: '销号审核', desc: '审核整改材料和销号申请。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
+      { title: '整改分析', desc: '查看完成率、逾期率和风险分布。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' }
+    ]
   },
   auditor: {
-    name: '审计人员首页',
-    badge: '项目作业视图',
-    title: '我的审计整改工作台',
-    subtitle: '聚焦分配给自己的项目、问题跟踪、整改评价和资料复核。',
+    title: '审计整改工作台',
+    desc: '查看整改任务、问题台账和整改分析。',
     workTitle: '审计作业入口',
-    processTitle: '审计人员处理路径',
-    primaryAction: { text: '查看整改任务', path: '/rectification/task' },
-    activeStep: 2,
-    metrics: baseMetrics(),
-    todos: [
-      { label: '当前整改任务', value: valueOf(() => pending.tasks) },
-      { label: '整改中问题', value: valueOf(() => overview.inProgress) },
-      { label: '逾期问题', value: valueOf(() => overview.overdue) }
-    ],
-    actions: [
-      { title: '整改任务', desc: '查看项目整改任务和责任分工', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
-      { title: '问题台账', desc: '检索审计发现问题和整改状态', icon: 'List', path: '/rectification/issue', tone: 'blue' },
-      { title: '销号管理', desc: '查看销号申请和审核结果', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
-      { title: '统计分析', desc: '查看整改成效和风险趋势', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'gray' }
-    ],
-    steps: auditSteps()
+    workDesc: '查看整改任务和相关问题进展。',
+    todoTitle: '待关注事项',
+    todoDesc: '关注整改中和逾期事项。',
+    primary: { text: '整改任务', path: '/rectification/task' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => baseMetrics('/rectification/task'),
+    todos: () => baseTodos('/rectification/task'),
+    actions: auditActions()
   },
   unitLeader: {
-    name: '被审单位负责人首页',
-    badge: '本单位整改审批',
-    title: '本单位整改概览',
-    subtitle: '查看本单位整改台账、待审批整改报告、复核结果和逾期风险。',
+    title: '本单位整改审批工作台',
+    desc: '审批整改报告，查看本单位整改台账和复核结果。',
     workTitle: '负责人审批入口',
-    processTitle: '单位负责人审批路径',
-    primaryAction: { text: '处理我的任务', path: '/rectification/my-tasks' },
-    activeStep: 3,
-    metrics: unitMetrics(),
-    todos: [
-      { label: '我的待办任务', value: valueOf(() => pending.myTasks) },
-      { label: '本单位整改中', value: valueOf(() => overview.inProgress) },
-      { label: '本单位逾期', value: valueOf(() => overview.overdue) }
-    ],
-    actions: [
-      { title: '我的任务', desc: '审批整改报告并查看复核结果', icon: 'User', path: '/rectification/my-tasks', tone: 'blue' },
-      { title: '任务详情', desc: '查看本单位整改任务全过程', icon: 'Document', path: '/rectification/my-tasks', tone: 'amber' },
-      { title: '销号记录', desc: '查看本单位销号申请处理情况', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
-      { title: '整改统计', desc: '查看本单位整改成效', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'gray' }
-    ],
-    steps: unitSteps()
+    workDesc: '处理整改报告审批，并跟踪本单位整改进展。',
+    todoTitle: '我的待办',
+    todoDesc: '只显示本单位负责人需要处理的事项。',
+    primary: { text: '处理我的任务', path: '/rectification/my-tasks' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => unitMetrics(),
+    todos: () => baseTodos('/rectification/my-tasks'),
+    actions: unitActions('审批整改报告并查看复核结果。')
   },
   liaison: {
-    name: '联络员首页',
-    badge: '资料与分办协同',
-    title: '本单位整改任务分办',
-    subtitle: '接收整改任务、确认问题、分办责任人并跟踪材料提交进度。',
+    title: '整改任务接收与分办工作台',
+    desc: '接收审计处下发任务，确认问题并分办责任人。',
     workTitle: '联络员操作入口',
-    processTitle: '联络员协同路径',
-    primaryAction: { text: '进入我的任务', path: '/rectification/my-tasks' },
-    activeStep: 2,
-    metrics: unitMetrics(),
-    todos: [
-      { label: '待确认/分办任务', value: valueOf(() => pending.myTasks) },
-      { label: '整改中任务', value: valueOf(() => overview.inProgress) },
-      { label: '逾期预警', value: valueOf(() => overview.overdue) }
-    ],
-    actions: [
-      { title: '我的任务', desc: '确认接收并分办整改责任人', icon: 'User', path: '/rectification/my-tasks', tone: 'blue' },
-      { title: '任务台账', desc: '跟踪本单位整改任务状态', icon: 'List', path: '/rectification/my-tasks', tone: 'amber' },
-      { title: '材料填报', desc: '协助上传整改佐证材料', icon: 'Upload', path: '/rectification/my-tasks', tone: 'green' },
-      { title: '进度查看', desc: '查看整改报告和销号进展', icon: 'DataLine', path: '/rectification/my-tasks', tone: 'gray' }
-    ],
-    steps: unitSteps()
+    workDesc: '负责任务确认、责任分办和材料协同。',
+    todoTitle: '我的待办',
+    todoDesc: '只显示联络员需要处理的任务。',
+    primary: { text: '进入我的任务', path: '/rectification/my-tasks' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => unitMetrics(),
+    todos: () => baseTodos('/rectification/my-tasks'),
+    actions: unitActions('确认接收并分办整改责任人。')
   },
   rectifier: {
-    name: '整改责任人首页',
-    badge: '个人整改执行',
-    title: '我的整改任务',
-    subtitle: '编制整改方案、填报整改材料、生成整改报告并发起销号申请。',
+    title: '我的整改任务工作台',
+    desc: '处理整改方案、佐证材料、整改报告和销号申请。',
     workTitle: '整改人操作入口',
-    processTitle: '整改责任人闭环路径',
-    primaryAction: { text: '处理我的任务', path: '/rectification/my-tasks' },
-    activeStep: 2,
-    metrics: unitMetrics(),
-    todos: [
-      { label: '我的整改任务', value: valueOf(() => pending.myTasks) },
-      { label: '整改中', value: valueOf(() => overview.inProgress) },
-      { label: '逾期预警', value: valueOf(() => overview.overdue) }
-    ],
-    actions: [
-      { title: '我的任务', desc: '进入方案、材料、报告和销号操作', icon: 'User', path: '/rectification/my-tasks', tone: 'blue' },
-      { title: '整改方案', desc: '维护整改计划和整改措施', icon: 'Document', path: '/rectification/my-tasks', tone: 'amber' },
-      { title: '佐证材料', desc: '上传合同、凭证、制度文件等附件', icon: 'Upload', path: '/rectification/my-tasks', tone: 'green' },
-      { title: '整改报告', desc: '提交报告并等待单位负责人审批', icon: 'Tickets', path: '/rectification/my-tasks', tone: 'gray' }
-    ],
-    steps: unitSteps()
-  },
-  agency: {
-    name: '中介机构首页',
-    badge: '临时授权项目',
-    title: '分配项目作业入口',
-    subtitle: '仅查看授权期内分配项目的数据、资料和底稿，项目结束后权限自动回收。',
-    workTitle: '中介作业入口',
-    processTitle: '中介人员作业路径',
-    primaryAction: { text: '查看项目任务', path: '/rectification/task' },
-    activeStep: 1,
-    metrics: baseMetrics(),
-    todos: [
-      { label: '授权项目任务', value: valueOf(() => pending.tasks) },
-      { label: '整改中问题', value: valueOf(() => overview.inProgress) },
-      { label: '需关注逾期', value: valueOf(() => overview.overdue) }
-    ],
-    actions: [
-      { title: '分配项目', desc: '查看授权项目范围内任务', icon: 'FolderOpened', path: '/rectification/task', tone: 'blue' },
-      { title: '问题资料', desc: '查看项目相关问题和材料', icon: 'Document', path: '/rectification/issue', tone: 'amber' },
-      { title: '作业记录', desc: '维护授权范围内作业内容', icon: 'EditPen', path: '/rectification/task', tone: 'green' },
-      { title: '授权说明', desc: '仅展示服务周期内可访问数据', icon: 'Lock', path: '/user/profile', tone: 'gray' }
-    ],
-    steps: [
-      { title: '临时授权', desc: '按项目开通访问权限' },
-      { title: '项目作业', desc: '录入和维护授权资料' },
-      { title: '成果提交', desc: '提交项目作业成果' },
-      { title: '权限回收', desc: '结项后自动回收权限' }
-    ]
+    workDesc: '围绕个人整改任务完成整改闭环。',
+    todoTitle: '我的待办',
+    todoDesc: '只显示整改责任人需要处理的任务。',
+    primary: { text: '处理我的任务', path: '/rectification/my-tasks' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => unitMetrics(),
+    todos: () => baseTodos('/rectification/my-tasks'),
+    actions: unitActions('进入方案、材料、报告和销号操作。')
   }
 }
 
-function baseMetrics() {
+function metric(key, label, value, icon, path, tone) {
+  return { key, label, value, icon, path, tone }
+}
+
+function baseMetrics(taskPath) {
   return [
-    { key: 'total', label: '问题总数', value: valueOf(() => overview.totalIssues), icon: 'List', path: '/rectification/issue', tone: 'blue' },
-    { key: 'doing', label: '整改中', value: valueOf(() => overview.inProgress), icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
-    { key: 'done', label: '已销号', value: valueOf(() => overview.completed), icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
-    { key: 'overdue', label: '逾期预警', value: valueOf(() => overview.overdue), icon: 'WarningFilled', path: '/rectification/statistics', tone: 'red' }
+    metric('issues', '问题总数', overview.totalIssues, 'List', '/rectification/issue', 'blue'),
+    metric('doing', '整改中', overview.inProgress, 'EditPen', taskPath, 'amber'),
+    metric('done', '已销号', overview.completed, 'CircleCheck', '/rectification/closure', 'green'),
+    metric('overdue', '逾期预警', overview.overdue, 'WarningFilled', '/rectification/statistics', 'red')
   ]
 }
 
 function unitMetrics() {
   return [
-    { key: 'mine', label: '我的任务', value: valueOf(() => pending.myTasks), icon: 'User', path: '/rectification/my-tasks', tone: 'blue' },
-    { key: 'doing', label: '整改中', value: valueOf(() => overview.inProgress), icon: 'EditPen', path: '/rectification/my-tasks', tone: 'amber' },
-    { key: 'done', label: '已完成', value: valueOf(() => overview.completed), icon: 'CircleCheck', path: '/rectification/my-tasks', tone: 'green' },
-    { key: 'overdue', label: '逾期预警', value: valueOf(() => overview.overdue), icon: 'WarningFilled', path: '/rectification/my-tasks', tone: 'red' }
+    metric('mine', '我的任务', overview.myTasks, 'User', '/rectification/my-tasks', 'blue'),
+    metric('doing', '整改中', overview.inProgress, 'EditPen', '/rectification/my-tasks', 'amber'),
+    metric('done', '已完成', overview.completed, 'CircleCheck', '/rectification/my-tasks', 'green'),
+    metric('overdue', '逾期预警', overview.overdue, 'WarningFilled', '/rectification/statistics', 'red')
   ]
 }
 
-function auditSteps() {
+function baseTodos(path) {
   return [
-    { title: '问题入库', desc: '内源同步或外源录入' },
-    { title: '任务下发', desc: '指定单位和整改期限' },
-    { title: '整改跟踪', desc: '查看方案、材料和报告' },
-    { title: '销号审核', desc: '通过销号或驳回二次整改' },
-    { title: '统计分析', desc: '反向优化审计重点' }
+    { label: '我的任务', value: overview.myTasks, path },
+    { label: '整改中任务', value: overview.inProgress, path },
+    { label: '逾期预警', value: overview.overdue, path: '/rectification/statistics' }
   ]
 }
 
-function unitSteps() {
+function auditActions() {
   return [
-    { title: '接收任务', desc: '确认问题和整改要求' },
-    { title: '方案整改', desc: '填报计划、措施和成效' },
-    { title: '报告审批', desc: '负责人审批整改报告' },
-    { title: '申请销号', desc: '提交销号附言和材料' },
-    { title: '审计复核', desc: '通过归档或补充整改' }
+    { title: '整改任务', desc: '查看整改任务和责任分工。', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
+    { title: '问题台账', desc: '检索审计发现问题和整改状态。', icon: 'List', path: '/rectification/issue', tone: 'blue' },
+    { title: '销号管理', desc: '查看销号申请和审核结果。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
+    { title: '统计分析', desc: '查看整改成效和风险趋势。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' }
   ]
 }
 
-function valueOf(getter) {
-  return computed(getter)
-}
-
-function displayValue(value) {
-  return unref(value)
+function unitActions(firstDesc) {
+  return [
+    { title: '我的任务', desc: firstDesc, icon: 'User', path: '/rectification/my-tasks', tone: 'blue' },
+    { title: '整改方案', desc: '查看或维护整改计划和措施。', icon: 'Document', path: '/rectification/my-tasks', tone: 'amber' },
+    { title: '佐证材料', desc: '查看或上传整改附件材料。', icon: 'Upload', path: '/rectification/my-tasks', tone: 'green' },
+    { title: '整改统计', desc: '查看整改完成率和逾期情况。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' }
+  ]
 }
 
 function hasAnyRole(roleKeys) {
@@ -319,8 +250,11 @@ function hasAnyRole(roleKeys) {
 }
 
 function go(path) {
-  if (!path) return
-  router.push(path)
+  if (path) router.push(path)
+}
+
+function goTaskDetail(task) {
+  if (task?.taskId) router.push('/rectification/task-page/detail/' + task.taskId)
 }
 
 function normalizeOverview(data) {
@@ -328,31 +262,14 @@ function normalizeOverview(data) {
   overview.inProgress = data.inProgressCount || data.inProgress || data.rectifyingCount || 0
   overview.completed = data.completedCount || data.closedCount || data.completed || 0
   overview.overdue = data.overdueCount || data.overdue || 0
-  overview.completionRate = `${data.completionRate || 0}%`
-  overview.overdueRate = `${data.overdueRate || 0}%`
-  overview.recoveryAmount = data.totalRecoveryAmount || data.recoveryAmount || '0.00'
+  overview.tasks = data.tasks || data.taskTotal || 0
+  overview.myTasks = data.myTasks || data.myTaskTotal || 0
+  overview.closures = data.closures || data.closurePending || 0
+  recentTasks.value = Array.isArray(data.recentTasks) ? data.recentTasks : []
 }
 
 function loadHomeData() {
   getOverview().then(res => normalizeOverview(res.data || {})).catch(() => {})
-
-  if (['unitLeader', 'liaison', 'rectifier'].includes(homeType.value)) {
-    listMyTask({ pageNum: 1, pageSize: 1 }).then(res => {
-      pending.myTasks = res.total || 0
-    }).catch(() => {})
-  }
-
-  if (['auditManager', 'auditor', 'agency'].includes(homeType.value)) {
-    listTask({ pageNum: 1, pageSize: 1 }).then(res => {
-      pending.tasks = res.total || 0
-    }).catch(() => {})
-  }
-
-  if (homeType.value === 'auditManager') {
-    listClosure({ pageNum: 1, pageSize: 1, status: '0' }).then(res => {
-      pending.closures = res.total || 0
-    }).catch(() => {})
-  }
 }
 
 onMounted(loadHomeData)
@@ -360,86 +277,64 @@ onMounted(loadHomeData)
 
 <style scoped lang="scss">
 .role-home {
-  padding: 16px;
-  background: #f5f7fb;
   min-height: calc(100vh - 84px);
+  padding: 18px;
+  background: #f5f7fb;
+}
+
+.home-header,
+.panel,
+.metric-card {
+  border: 1px solid #e1e8f2;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(65, 84, 109, 0.06);
 }
 
 .home-header {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  align-items: stretch;
-  padding: 22px 24px;
-  margin-bottom: 16px;
-  color: #fff;
-  background: linear-gradient(135deg, #174b7f 0%, #1f6f6a 100%);
-  border-radius: 8px;
+  gap: 14px;
+  padding: 18px 20px;
+  margin-bottom: 18px;
 
   h1 {
-    margin: 6px 0 8px;
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: 0;
+    margin: 0;
+    color: #20324d;
+    font-size: 22px;
+    line-height: 1.3;
   }
 
   p {
-    margin: 0;
-    color: rgba(255, 255, 255, 0.82);
-    line-height: 1.6;
-  }
-}
-
-.eyebrow {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.role-panel {
-  min-width: 180px;
-  padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-
-  span {
+    margin: 6px 0 0;
+    color: #718096;
     font-size: 13px;
-    opacity: 0.78;
+    line-height: 1.5;
   }
+}
 
-  strong {
-    margin-top: 8px;
-    font-size: 18px;
-  }
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .metric-row {
-  margin-bottom: 16px;
-}
-
-.metric-card,
-.panel {
-  background: #fff;
-  border: 1px solid #e6eaf0;
-  border-radius: 8px;
+  margin-bottom: 18px;
+  row-gap: 12px;
 }
 
 .metric-card {
-  min-height: 104px;
-  padding: 18px;
+  width: 100%;
+  min-height: 108px;
+  padding: 16px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  color: inherit;
+  text-align: left;
   cursor: pointer;
-  transition: border-color 0.18s, box-shadow 0.18s;
-
-  &:hover {
-    border-color: #91caff;
-    box-shadow: 0 8px 20px rgba(32, 45, 64, 0.08);
-  }
 }
 
 .metric-icon,
@@ -449,145 +344,193 @@ onMounted(loadHomeData)
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
   flex-shrink: 0;
-}
-
-.blue {
-  color: #1677ff;
-  background: #eaf3ff;
-}
-
-.amber {
-  color: #c97900;
-  background: #fff4df;
-}
-
-.green {
-  color: #2f8f4e;
-  background: #eaf8ef;
-}
-
-.red {
-  color: #d93026;
-  background: #fff0ee;
-}
-
-.gray {
-  color: #5f6b7a;
-  background: #eef1f5;
-}
-
-.metric-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #202d40;
-  line-height: 1;
-}
-
-.metric-label {
-  margin-top: 8px;
-  color: #6b7785;
-  font-size: 13px;
-}
-
-.panel {
-  padding: 18px;
-  margin-bottom: 16px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    color: #202d40;
-  }
-}
-
-.action-item {
-  width: 100%;
-  min-height: 82px;
-  padding: 14px;
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border: 1px solid #e6eaf0;
   border-radius: 8px;
-  background: #fff;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.18s, background 0.18s;
+}
 
-  &:hover {
-    border-color: #91caff;
-    background: #fbfdff;
-  }
+.blue { color: #2f6fe4; background: #edf4ff; }
+.amber { color: #b66d00; background: #fff6e5; }
+.green { color: #28845a; background: #ebf8f1; }
+.red { color: #cf4a3b; background: #fff0ed; }
+.violet { color: #6d5bd0; background: #f1efff; }
+
+.metric-copy {
+  min-width: 0;
 
   strong {
     display: block;
-    color: #202d40;
-    font-size: 14px;
-    margin-bottom: 5px;
+    color: #1f2f46;
+    font-size: 28px;
+    line-height: 1;
   }
 
   em {
     display: block;
-    color: #7a8696;
-    font-size: 12px;
+    margin-top: 8px;
+    color: #6f7e93;
+    font-size: 13px;
+    font-style: normal;
+  }
+}
+
+.panel {
+  padding: 20px;
+  margin-bottom: 18px;
+}
+
+.panel-header {
+  margin-bottom: 16px;
+
+  h2 {
+    margin: 0;
+    color: #1f2f46;
+    font-size: 18px;
+  }
+
+  p {
+    margin: 6px 0 0;
+    color: #7a879a;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.action-item {
+  min-height: 94px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 1px solid #e4ebf5;
+  border-radius: 8px;
+  background: #fbfdff;
+  text-align: left;
+  cursor: pointer;
+
+  strong {
+    display: block;
+    color: #22334c;
+    font-size: 15px;
+  }
+
+  em {
+    display: block;
+    margin-top: 6px;
+    color: #758397;
+    font-size: 13px;
     line-height: 1.5;
     font-style: normal;
   }
 }
 
-.todo-list {
+.todo-list,
+.recent-list {
   display: grid;
   gap: 10px;
 }
 
-.todo-item {
-  height: 48px;
+.recent-list {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e6edf6;
+}
+
+.recent-title {
+  color: #6f7e93;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.todo-item,
+.recent-item {
+  width: 100%;
+  min-height: 50px;
   padding: 0 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #f7f9fc;
+  gap: 10px;
+  border: 1px solid #e6edf6;
   border-radius: 8px;
-  color: #5f6b7a;
-
-  strong {
-    color: #202d40;
-    font-size: 18px;
-  }
+  background: #f8fbff;
+  cursor: pointer;
 }
 
-.process-panel {
-  overflow-x: auto;
+.todo-item span,
+.recent-item span {
+  min-width: 0;
+  color: #5f6f86;
+  font-size: 14px;
+  text-align: left;
 }
 
-:deep(.el-step__description) {
-  max-width: 150px;
-  line-height: 1.45;
+.todo-item strong {
+  color: #1f2f46;
+  font-size: 20px;
+}
+
+.recent-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-item em {
+  flex-shrink: 0;
+  color: #6f7e93;
+  font-size: 12px;
+  font-style: normal;
 }
 
 @media (max-width: 768px) {
+  .role-home {
+    padding: 12px;
+  }
+
   .home-header {
-    flex-direction: column;
-    padding: 18px;
+    display: block;
+    padding: 16px;
 
     h1 {
-      font-size: 22px;
+      font-size: 20px;
     }
   }
 
-  .role-panel {
-    min-width: 0;
+  .header-actions {
+    margin-top: 14px;
+
+    .el-button {
+      flex: 1;
+      margin-left: 0;
+    }
+  }
+
+  .metric-card {
+    min-height: 96px;
+    padding: 12px;
+  }
+
+  .metric-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .metric-copy strong {
+    font-size: 22px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .action-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

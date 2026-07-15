@@ -1,7 +1,7 @@
 <template>
-  <div class="app-container">
+  <div class="app-container task-page">
     <!-- Search Form -->
-    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
+    <el-form class="desktop-task-search" :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
       <el-form-item label="任务编号" prop="taskNo">
         <el-input
           v-model="queryParams.taskNo"
@@ -27,15 +27,31 @@
       </el-form-item>
     </el-form>
 
+    <MobileFilterBar
+      v-model="queryParams.taskNo"
+      placeholder="搜索任务编号"
+      :active-count="queryParams.status ? 1 : 0"
+      @search="handleQuery"
+      @reset="resetQuery"
+    >
+      <el-form label-position="top">
+        <el-form-item label="任务状态">
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
+            <el-option v-for="dict in taskStatusOptions" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+    </MobileFilterBar>
+
     <!-- Action Bar -->
-    <el-row :gutter="10" class="mb8">
+    <el-row :gutter="10" class="mb8 task-toolbar">
       <el-col :span="1.5">
         <el-button
           type="primary"
           plain
           icon="Plus"
           @click="handleDispatch"
-          v-hasPermi="['rectification:task:add']"
+          v-hasPermi="['rectification:task:dispatch']"
         >下发任务</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -43,16 +59,15 @@
           type="success"
           plain
           icon="Operation"
-          :disabled="!ids.length"
           @click="handleBatchDispatch"
-          v-hasPermi="['rectification:task:add']"
+          v-hasPermi="['rectification:task:batchDispatch']"
         >批量下发</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <!-- Table -->
-    <el-table v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
+    <el-table class="task-table" v-loading="loading" :data="taskList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="任务编号" align="center" prop="taskNo" width="140" />
       <el-table-column label="关联问题" align="center" prop="issueTitle" :show-overflow-tooltip="true" min-width="180" />
@@ -98,6 +113,30 @@
       </el-table-column>
     </el-table>
 
+    <div v-loading="loading" class="task-mobile-list">
+      <el-empty v-if="!loading && taskList.length === 0" description="暂无任务数据" />
+      <section v-for="item in taskList" :key="item.taskId" class="task-card">
+        <div class="task-card-header">
+          <div class="task-card-title">
+            <strong>{{ item.issueTitle || '整改任务' }}</strong>
+            <span>{{ item.taskNo || '-' }}</span>
+          </div>
+          <el-tag :type="taskStatusTag(item.status)">{{ taskStatusLabel(item.status) }}</el-tag>
+        </div>
+        <div class="task-card-meta">
+          <span><em>整改单位</em><b>{{ deptName(item.rectDeptId) || '-' }}</b></span>
+          <span><em>联络人</em><b>{{ item.contactPerson || '-' }}</b></span>
+          <span><em>截止日期</em><b>{{ item.deadline || '-' }}</b></span>
+          <span><em>下发时间</em><b>{{ item.dispatchTime || '-' }}</b></span>
+        </div>
+        <div class="task-card-actions">
+          <el-button type="primary" plain icon="View" @click="handleDetail(item)" v-hasPermi="['rectification:task:query']">详情</el-button>
+          <el-button v-if="item.status === '0' && !isAdmin" type="success" plain icon="Check" @click="handleConfirm(item)">接收</el-button>
+          <el-button type="warning" plain icon="Document" @click="handleGenerateNotice(item)" v-hasPermi="['rectification:task:notice']">通知书</el-button>
+        </div>
+      </section>
+    </div>
+
     <pagination
       v-show="total > 0"
       :total="total"
@@ -107,21 +146,23 @@
     />
 
     <!-- Dispatch Dialog (下发任务) -->
-    <el-dialog :title="dispatchTitle" v-model="dispatchOpen" width="900px" append-to-body>
+    <el-dialog class="mobile-form-dialog task-dispatch-dialog" :title="dispatchTitle" v-model="dispatchOpen" width="900px" append-to-body>
       <div class="dispatch-container">
         <!-- Step 1: Select issues to dispatch -->
         <div class="dispatch-section">
           <h4 class="dispatch-section-title">选择待下发问题</h4>
-          <el-input v-model="issueSearch" placeholder="搜索问题编号或标题" clearable style="width: 280px; margin-bottom: 8px" />
+          <el-input class="dispatch-issue-search" v-model="issueSearch" placeholder="搜索问题编号或标题" clearable />
           <el-table
+            class="dispatch-issue-table"
             ref="issueSelectTableRef"
             v-loading="issueLoading"
             :data="filteredIssueList"
+            row-key="issueId"
             @selection-change="handleDispatchIssueSelect"
             max-height="300"
             stripe
           >
-            <el-table-column type="selection" width="55" align="center" />
+            <el-table-column type="selection" width="55" align="center" :reserve-selection="true" />
             <el-table-column label="问题编号" prop="issueNo" width="140" />
             <el-table-column label="问题标题" prop="issueTitle" :show-overflow-tooltip="true" min-width="200" />
             <el-table-column label="来源类型" prop="sourceType" width="100">
@@ -138,7 +179,52 @@
               <template #default="scope">{{ deptName(scope.row.responsibleDeptId) }}</template>
             </el-table-column>
           </el-table>
+
+          <div v-loading="issueLoading" class="dispatch-issue-mobile">
+            <div class="dispatch-mobile-toolbar">
+              <el-checkbox
+                v-if="isBatchDispatch"
+                :model-value="allVisibleIssuesSelected"
+                :indeterminate="someVisibleIssuesSelected"
+                @change="toggleVisibleIssues"
+              >全选当前页</el-checkbox>
+              <span v-else>请选择 1 个待下发问题</span>
+              <el-button v-if="dispatchForm.issueIds.length" link type="primary" @click="clearIssueSelection">清空</el-button>
+            </div>
+
+            <el-empty v-if="!issueLoading && filteredIssueList.length === 0" description="暂无待下发问题" />
+            <section
+              v-for="item in filteredIssueList"
+              :key="item.issueId"
+              class="dispatch-issue-card"
+              :class="{ selected: isIssueSelected(item.issueId) }"
+              @click="toggleMobileIssue(item, !isIssueSelected(item.issueId))"
+            >
+              <div class="dispatch-issue-card-head">
+                <el-checkbox
+                  :model-value="isIssueSelected(item.issueId)"
+                  @click.stop
+                  @change="checked => toggleMobileIssue(item, checked)"
+                />
+                <div>
+                  <strong>{{ item.issueTitle || '未命名问题' }}</strong>
+                  <span>{{ item.issueNo || '-' }}</span>
+                </div>
+              </div>
+              <div class="dispatch-issue-tags">
+                <el-tag :type="sourceTypeTag(item.sourceType)" size="small">{{ sourceTypeLabel(item.sourceType) }}</el-tag>
+                <el-tag :type="categoryTag(item.issueCategory)" size="small">{{ categoryLabel(item.issueCategory) }}</el-tag>
+              </div>
+              <div class="dispatch-issue-meta">
+                <span><em>责任单位</em><b>{{ deptName(item.responsibleDeptId) || '-' }}</b></span>
+                <span><em>责任人</em><b>{{ item.responsiblePerson || '-' }}</b></span>
+                <span><em>截止日期</em><b>{{ item.deadline || '-' }}</b></span>
+              </div>
+            </section>
+          </div>
+
           <el-pagination
+            class="dispatch-issue-pagination"
             v-if="issueTotal > 0"
             v-model:current-page="issuePage.pageNum"
             v-model:page-size="issuePage.pageSize"
@@ -153,7 +239,7 @@
         <!-- Step 2: Fill task info -->
         <div class="dispatch-section">
           <h4 class="dispatch-section-title">任务信息</h4>
-          <el-form ref="dispatchFormRef" :model="dispatchForm" :rules="dispatchRules" label-width="100px">
+          <el-form class="mobile-dialog-form" ref="dispatchFormRef" :model="dispatchForm" :rules="dispatchRules" label-width="100px">
             <el-row>
               <el-col :span="12">
                 <el-form-item label="整改单位" prop="rectDeptId">
@@ -196,6 +282,7 @@
       </div>
       <template #footer>
         <div class="dialog-footer">
+          <span class="dispatch-selected-count">已选择 {{ dispatchForm.issueIds.length }} 项</span>
           <el-button type="primary" @click="submitDispatch" :loading="submitLoading">确 定</el-button>
           <el-button @click="dispatchOpen = false">取 消</el-button>
         </div>
@@ -210,6 +297,8 @@ import { useRouter } from 'vue-router'
 import { listTask, getTask, addTask, batchDispatchTask, generateNotice, confirmTask } from '@/api/rectification/task'
 import { listIssue } from '@/api/rectification/issue'
 import request from '@/utils/request'
+import MobileFilterBar from '@/components/MobileFilterBar/index.vue'
+import { saveAs } from 'file-saver'
 
 import useUserStore from '@/store/modules/user'
 const router = useRouter()
@@ -273,6 +362,16 @@ const issueLoading = ref(false)
 const selectedIssues = ref([])
 const submitLoading = ref(false)
 const isBatchDispatch = ref(false)
+
+const visibleIssueIds = computed(() => filteredIssueList.value.map(item => String(item.issueId)))
+const selectedIssueIds = computed(() => dispatchForm.issueIds.map(id => String(id)))
+const allVisibleIssuesSelected = computed(() => {
+  return visibleIssueIds.value.length > 0 && visibleIssueIds.value.every(id => selectedIssueIds.value.includes(id))
+})
+const someVisibleIssuesSelected = computed(() => {
+  const selectedCount = visibleIssueIds.value.filter(id => selectedIssueIds.value.includes(id)).length
+  return selectedCount > 0 && selectedCount < visibleIssueIds.value.length
+})
 
 const data = reactive({
   queryParams: {
@@ -412,7 +511,38 @@ function handleBatchDispatch() {
 
 /** 选择下发的问题 */
 function handleDispatchIssueSelect(selection) {
+  if (window.matchMedia('(max-width: 768px)').matches) return
   dispatchForm.issueIds = selection.map(item => item.issueId)
+}
+
+function isIssueSelected(issueId) {
+  return selectedIssueIds.value.includes(String(issueId))
+}
+
+function toggleMobileIssue(item, checked) {
+  const issueId = item.issueId
+  if (!isBatchDispatch.value) {
+    dispatchForm.issueIds = checked ? [issueId] : []
+    return
+  }
+  if (checked && !isIssueSelected(issueId)) {
+    dispatchForm.issueIds.push(issueId)
+  } else if (!checked) {
+    dispatchForm.issueIds = dispatchForm.issueIds.filter(id => String(id) !== String(issueId))
+  }
+}
+
+function toggleVisibleIssues(checked) {
+  const visibleSet = new Set(visibleIssueIds.value)
+  const retained = dispatchForm.issueIds.filter(id => !visibleSet.has(String(id)))
+  dispatchForm.issueIds = checked
+    ? [...retained, ...filteredIssueList.value.map(item => item.issueId)]
+    : retained
+}
+
+function clearIssueSelection() {
+  dispatchForm.issueIds = []
+  proxy.$refs.issueSelectTableRef?.clearSelection()
 }
 
 /** 重置下发表单 */
@@ -438,8 +568,18 @@ function submitDispatch() {
         return
       }
       submitLoading.value = true
-      const postData = { ...dispatchForm }
+      const baseData = {
+        rectDeptId: dispatchForm.rectDeptId,
+        contactPerson: dispatchForm.contactPerson,
+        contactPhone: dispatchForm.contactPhone,
+        deadline: dispatchForm.deadline,
+        taskRequirement: dispatchForm.requirement
+      }
       if (isBatchDispatch.value) {
+        const postData = dispatchForm.issueIds.map(issueId => ({
+          ...baseData,
+          issueIds: [issueId]
+        }))
         batchDispatchTask(postData).then(() => {
           proxy.$modal.msgSuccess('批量下发成功')
           dispatchOpen.value = false
@@ -448,8 +588,10 @@ function submitDispatch() {
           submitLoading.value = false
         })
       } else {
-        // 单个下发时，取第一个问题
-        postData.issueId = dispatchForm.issueIds[0]
+        const postData = {
+          ...baseData,
+          issueIds: [dispatchForm.issueIds[0]]
+        }
         addTask(postData).then(() => {
           proxy.$modal.msgSuccess('任务下发成功')
           dispatchOpen.value = false
@@ -480,7 +622,25 @@ function handleConfirm(row) {
 /** 生成通知书 */
 function handleGenerateNotice(row) {
   proxy.$modal.confirm('确认生成整改通知书？').then(function () {
-    proxy.download('rectification/task/notice/' + row.taskId, {}, `notice_${row.taskNo}_${new Date().getTime()}.docx`)
+    return generateNotice(row.taskId)
+  }).then(async response => {
+    const blob = response && response.data
+    if (!blob) {
+      throw new Error('通知书内容为空')
+    }
+    if (blob.type && blob.type.includes('application/json')) {
+      const result = JSON.parse(await blob.text())
+      throw new Error(result.msg || '通知书生成失败')
+    }
+    const wordBlob = new Blob([blob], {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    })
+    saveAs(wordBlob, `整改通知书_${row.taskNo || row.taskId}.docx`)
+    proxy.$modal.msgSuccess('通知书已下载')
+  }).catch(error => {
+    if (error && error.message && error.message !== 'cancel') {
+      proxy.$modal.msgError(error.message)
+    }
   }).catch(() => {})
 }
 
@@ -501,5 +661,326 @@ getList()
   margin: 0 0 12px 0;
   padding-left: 8px;
   border-left: 3px solid #409eff;
+}
+
+.task-mobile-list {
+  display: none;
+}
+
+.task-card {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid #e3eaf4;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(36, 52, 75, 0.06);
+}
+
+.task-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.task-card-title {
+  min-width: 0;
+}
+
+.task-card-title strong {
+  display: block;
+  color: #1f2f46;
+  font-size: 15px;
+  line-height: 1.45;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-title span {
+  display: block;
+  margin-top: 4px;
+  color: #7a8798;
+  font-size: 12px;
+}
+
+.task-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  padding: 12px 0;
+}
+
+.task-card-meta span {
+  min-width: 0;
+}
+
+.task-card-meta em {
+  display: block;
+  color: #8a96a8;
+  font-size: 12px;
+  line-height: 1.4;
+  font-style: normal;
+}
+
+.task-card-meta b {
+  display: block;
+  margin-top: 3px;
+  color: #2c3e57;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #eef2f7;
+}
+
+.task-card-actions .el-button {
+  width: 100%;
+  margin-left: 0;
+}
+
+.dispatch-issue-search {
+  width: 280px;
+  margin-bottom: 8px;
+}
+
+.dispatch-issue-mobile {
+  display: none;
+}
+
+.dispatch-selected-count {
+  margin-right: auto;
+  color: #52657d;
+  font-size: 13px;
+}
+
+@media (max-width: 768px) {
+  .task-page {
+    padding: 12px;
+    background: #f5f7fb;
+  }
+
+  .desktop-task-search {
+    display: none;
+  }
+
+  .task-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .task-toolbar :deep(.el-col) {
+    flex: 1;
+    max-width: none;
+    width: auto;
+  }
+
+  .task-toolbar :deep(.el-button) {
+    width: 100%;
+    margin-left: 0;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .task-toolbar :deep(.right-toolbar) {
+    display: none;
+  }
+
+  .task-table {
+    display: none;
+  }
+
+  .task-mobile-list {
+    display: block;
+  }
+
+  .dispatch-container {
+    padding: 0;
+  }
+
+  .dispatch-section {
+    overflow: visible;
+  }
+
+  .dispatch-issue-search {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+
+  .dispatch-issue-table {
+    display: none;
+  }
+
+  .dispatch-issue-mobile {
+    display: block;
+    min-height: 120px;
+  }
+
+  .dispatch-mobile-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 36px;
+    padding: 0 2px 8px;
+    color: #66768c;
+    font-size: 13px;
+  }
+
+  .dispatch-issue-card {
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #dfe7f1;
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+
+  .dispatch-issue-card.selected {
+    border-color: #409eff;
+    background: #f4f8ff;
+  }
+
+  .dispatch-issue-card-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .dispatch-issue-card-head > div {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .dispatch-issue-card-head strong {
+    display: block;
+    color: #1f2f46;
+    font-size: 14px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .dispatch-issue-card-head span {
+    display: block;
+    margin-top: 3px;
+    color: #8390a2;
+    font-size: 12px;
+  }
+
+  .dispatch-issue-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 0;
+  }
+
+  .dispatch-issue-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 12px;
+    padding-top: 9px;
+    border-top: 1px solid #edf1f6;
+  }
+
+  .dispatch-issue-meta span:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .dispatch-issue-meta em,
+  .dispatch-issue-meta b {
+    display: block;
+    min-width: 0;
+    font-style: normal;
+    line-height: 1.4;
+  }
+
+  .dispatch-issue-meta em {
+    color: #8a96a8;
+    font-size: 11px;
+  }
+
+  .dispatch-issue-meta b {
+    margin-top: 2px;
+    color: #34465e;
+    font-size: 12px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  .dispatch-issue-pagination {
+    justify-content: center;
+    width: 100%;
+    margin-top: 10px;
+    white-space: normal;
+  }
+
+  .dispatch-issue-pagination :deep(.el-pagination__total),
+  .dispatch-issue-pagination :deep(.el-pagination__sizes) {
+    display: none;
+  }
+
+  .task-dispatch-dialog :deep(.el-dialog__footer) {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    padding: 10px 14px;
+    border-top: 1px solid #e8edf4;
+    background: #fff;
+  }
+
+  .task-dispatch-dialog .dialog-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 8px;
+  }
+
+  .task-dispatch-dialog .dispatch-selected-count {
+    grid-column: 1 / -1;
+    margin-right: 0;
+    padding-bottom: 2px;
+    text-align: left;
+  }
+
+  .task-dispatch-dialog .dialog-footer .el-button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .task-page :deep(.el-dialog) {
+    width: 94vw !important;
+    margin-top: 5vh !important;
+  }
+
+  .task-page :deep(.el-dialog__body) {
+    max-height: 72vh;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  .task-page :deep(.el-form .el-row) {
+    display: block;
+  }
+
+  .task-page :deep(.el-form .el-col) {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .task-card-meta,
+  .task-card-actions {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

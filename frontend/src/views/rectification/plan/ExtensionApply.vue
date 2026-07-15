@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog extension-apply-dialog"
     :title="title"
     v-model="visible"
     width="550px"
@@ -7,7 +8,7 @@
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+    <el-form class="mobile-dialog-form" ref="formRef" :model="form" :rules="rules" label-width="110px">
       <el-form-item label="原截止日期">
         <el-input v-model="originalDeadline" disabled />
       </el-form-item>

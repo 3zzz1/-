@@ -42,7 +42,8 @@ INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_director, menu_id FROM
 -- 项目组长：操作+审核
 INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_lead, menu_id FROM sys_menu WHERE perms IN (
     'rectification:issue:list','rectification:issue:query','rectification:issue:add',
-    'rectification:task:list','rectification:task:query','rectification:task:myList',
+    'rectification:task:list','rectification:task:query','rectification:task:dispatch',
+    'rectification:task:batchDispatch','rectification:task:myList',
     'rectification:plan:query','rectification:plan:add','rectification:plan:edit',
     'rectification:material:list','rectification:material:upload','rectification:material:download',
     'rectification:report:query','rectification:report:add','rectification:report:submit',

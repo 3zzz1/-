@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    class="mobile-form-dialog closure-audit-dialog"
     v-model="visible"
     title="审核销号申请"
     width="650px"
@@ -7,57 +8,55 @@
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <el-descriptions :column="1" border size="default" style="margin-bottom: 20px">
-      <el-descriptions-item label="问题标题" label-align="right" min-width="120">
-        {{ form.issueTitle || '-' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="申请人" label-align="right">
-        {{ form.applicant || '-' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="申请时间" label-align="right">
-        {{ form.applyTime || '-' }}
-      </el-descriptions-item>
-      <el-descriptions-item label="销号附言" label-align="right">
-        <div class="description-text">{{ form.description || '-' }}</div>
-      </el-descriptions-item>
-      <el-descriptions-item label="整改报告文档" label-align="right">
+    <section class="audit-application-summary">
+      <div class="audit-summary-heading">
+        <span>销号申请</span>
+        <el-tag type="warning" size="small">待审核</el-tag>
+      </div>
+      <h3>{{ form.issueTitle || '未命名问题' }}</h3>
+      <div class="audit-summary-meta">
+        <div><span>申请人</span><strong>{{ form.applicant || '-' }}</strong></div>
+        <div><span>申请时间</span><strong>{{ form.applyTime || '-' }}</strong></div>
+      </div>
+      <div class="audit-remark">
+        <span>销号附言</span>
+        <p>{{ form.description || '-' }}</p>
+      </div>
+    </section>
+
+    <section class="audit-files-section">
+      <h4>整改材料</h4>
+      <div class="audit-file-list">
         <el-button
           type="primary"
           plain
-          size="small"
-          icon="Download"
+          icon="Document"
           :disabled="!form.taskId"
           @click="downloadReport"
         >
-          下载Word整改报告
+          Word整改报告
         </el-button>
-      </el-descriptions-item>
-      <el-descriptions-item label="附件材料" label-align="right">
-        <div v-if="form.attachments && form.attachments.length > 0" class="attachment-actions">
-          <el-button
-            v-for="(file, idx) in form.attachments"
-            :key="file.materialId || file.id || idx"
-            type="primary"
-            plain
-            size="small"
-            icon="Download"
-            @click="downloadFile(file)"
-          >
-            {{ file.name || file.fileName || '附件' + (idx + 1) }}
-          </el-button>
-        </div>
-        <span v-else class="text-muted">暂无附件</span>
-      </el-descriptions-item>
-    </el-descriptions>
+        <el-button
+          v-for="(file, idx) in form.attachments"
+          :key="file.materialId || file.id || idx"
+          plain
+          icon="Paperclip"
+          @click="downloadFile(file)"
+        >
+          {{ file.name || file.fileName || '附件' + (idx + 1) }}
+        </el-button>
+      </div>
+      <span v-if="!form.attachments || form.attachments.length === 0" class="text-muted">暂无附件材料</span>
+    </section>
 
-    <el-form ref="formRef" :model="auditForm" :rules="rules" label-width="120px">
-      <el-form-item label="审核结果" prop="result">
-        <el-radio-group v-model="auditForm.result">
-          <el-radio label="approved">
-            <span class="approved-text">整改完成（通过）</span>
+    <el-form class="closure-audit-form" ref="formRef" :model="auditForm" :rules="rules" label-position="top">
+      <el-form-item label="审核结论" prop="result">
+        <el-radio-group v-model="auditForm.result" class="audit-result-options">
+          <el-radio label="approved" border>
+            <span class="approved-text">整改完成</span>
           </el-radio>
-          <el-radio label="rejected">
-            <span class="rejected-text">整改不到位（驳回）</span>
+          <el-radio label="rejected" border>
+            <span class="rejected-text">整改不到位</span>
           </el-radio>
         </el-radio-group>
       </el-form-item>
@@ -67,7 +66,7 @@
           v-model="auditForm.opinion"
           type="textarea"
           :rows="3"
-          placeholder="请输入审核意见"
+          placeholder="可选，未填写时默认为“整改完成，同意销号”"
           maxlength="500"
           show-word-limit
         />
@@ -89,8 +88,8 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
-          {{ auditForm.result === 'approved' ? '确认通过' : '确认驳回' }}
+        <el-button :type="submitButtonType" :loading="submitLoading" @click="handleSubmit">
+          {{ submitButtonText }}
         </el-button>
         <el-button @click="handleClose">取消</el-button>
       </div>
@@ -103,6 +102,7 @@ import { ref, reactive, computed, watch, getCurrentInstance } from 'vue'
 import { saveAs } from 'file-saver'
 import { auditClosure } from '@/api/rectification/closure'
 import { downloadReportWord } from '@/api/rectification/report'
+import { downloadMaterial } from '@/api/rectification/material'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -118,6 +118,18 @@ const submitLoading = ref(false)
 const visible = computed({
   get: () => props.modelValue,
   set: val => emit('update:modelValue', val)
+})
+
+const submitButtonText = computed(() => {
+  if (auditForm.result === 'approved') return '确认通过'
+  if (auditForm.result === 'rejected') return '确认驳回'
+  return '提交审核'
+})
+
+const submitButtonType = computed(() => {
+  if (auditForm.result === 'approved') return 'success'
+  if (auditForm.result === 'rejected') return 'danger'
+  return 'primary'
 })
 
 const form = reactive({
@@ -138,7 +150,6 @@ const auditForm = reactive({
 
 const rules = {
   result: [{ required: true, message: '请选择审核结果', trigger: 'change' }],
-  opinion: [{ required: true, message: '请输入审核意见', trigger: 'blur' }],
   reworkRequirement: [{ required: true, message: '请输入补充整改要求', trigger: 'blur' }]
 }
 
@@ -168,30 +179,43 @@ watch(() => auditForm.result, val => {
 
 async function handleSubmit() {
   if (!formRef.value) return
-  await formRef.value.validate(valid => {
-    if (!valid) return
-    submitLoading.value = true
+  if (!auditForm.result) {
+    proxy.$modal.msgWarning('请先选择“整改完成”或“整改不到位”')
+    return
+  }
+  if (auditForm.result === 'rejected' && !auditForm.reworkRequirement.trim()) {
+    proxy.$modal.msgWarning('请输入补充整改要求')
+    return
+  }
+
+  try {
+    await formRef.value.validate()
     const isApproved = auditForm.result === 'approved'
     const actionText = isApproved ? '通过' : '驳回'
-    const auditOpinion = isApproved ? auditForm.opinion : auditForm.reworkRequirement
+    const auditOpinion = isApproved
+      ? (auditForm.opinion.trim() || '整改完成，同意销号')
+      : auditForm.reworkRequirement.trim()
 
-    proxy.$modal.confirm(
+    await proxy.$modal.confirm(
       `确认${actionText}该销号申请吗？`,
       '审核确认',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: isApproved ? 'success' : 'warning' }
-    ).then(() => auditClosure({
+    )
+    submitLoading.value = true
+    await auditClosure({
       closureId: form.id,
       auditResult: isApproved ? '1' : '2',
       auditOpinion,
       reRectRequired: isApproved ? null : auditForm.reworkRequirement
-    })).then(() => {
-      proxy.$modal.msgSuccess(`销号申请已${actionText}`)
-      emit('success')
-      handleClose()
-    }).catch(() => {}).finally(() => {
-      submitLoading.value = false
     })
-  })
+    proxy.$modal.msgSuccess(`销号申请已${actionText}`)
+    emit('success')
+    handleClose()
+  } catch (error) {
+    // 取消确认或表单校验失败时保持弹窗开启。
+  } finally {
+    submitLoading.value = false
+  }
 }
 
 function downloadReport() {
@@ -210,7 +234,9 @@ function downloadFile(file) {
     proxy.$modal.msgWarning('材料ID不可用')
     return
   }
-  proxy.download('/rectification/material/download/' + materialId, {}, file.fileName || file.name || 'download')
+  downloadMaterial(materialId).then(blob => {
+    saveBlob(blob, file.fileName || file.name || ('material_' + materialId))
+  })
 }
 
 async function saveBlob(blob, filename) {
@@ -225,7 +251,7 @@ async function saveBlob(blob, filename) {
     proxy.$modal.msgError(data.msg || '下载失败')
     return
   }
-  saveAs(new Blob([blob]), filename)
+  saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), filename)
 }
 
 function reportFileName(response, fallback) {
@@ -273,17 +299,146 @@ function handleClose() {
   gap: 8px;
 }
 
-.description-text {
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.6;
-  color: #303133;
+.audit-application-summary,
+.audit-files-section,
+.closure-audit-form {
+  padding: 16px;
+  border: 1px solid #e5eaf1;
+  border-radius: 8px;
+  background: #fff;
 }
 
-.attachment-actions {
+.audit-summary-heading {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.audit-summary-heading > span {
+  color: #7d8a9c;
+  font-size: 12px;
+}
+
+.audit-application-summary h3 {
+  margin: 8px 0 14px;
+  color: #1f2f46;
+  font-size: 17px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.audit-summary-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+}
+
+.audit-summary-meta span,
+.audit-summary-meta strong,
+.audit-remark > span {
+  display: block;
+  line-height: 1.4;
+}
+
+.audit-summary-meta span,
+.audit-remark > span {
+  color: #8a96a8;
+  font-size: 11px;
+}
+
+.audit-summary-meta strong {
+  margin-top: 3px;
+  color: #34465e;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.audit-remark {
+  padding: 10px 12px;
+  margin-top: 14px;
+  border-radius: 6px;
+  background: #f5f7fa;
+}
+
+.audit-remark p {
+  margin: 4px 0 0;
+  color: #34465e;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.audit-files-section,
+.closure-audit-form {
+  margin-top: 12px;
+}
+
+.audit-files-section h4 {
+  margin: 0 0 10px;
+  color: #34465e;
+  font-size: 14px;
+}
+
+.audit-file-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.audit-file-list .el-button {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.audit-file-list .el-button :deep(span) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.closure-audit-form :deep(.el-form-item) {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.closure-audit-form :deep(.el-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.closure-audit-form :deep(.el-form-item__label) {
+  display: block;
+  height: auto;
+  margin-bottom: 7px;
+  padding: 0;
+  color: #52657d;
+  line-height: 1.4;
+}
+
+.audit-result-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  gap: 8px;
+}
+
+.audit-result-options :deep(.el-radio) {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  margin: 0;
+  padding: 0 10px;
+}
+
+.closure-audit-form :deep(.el-textarea),
+.closure-audit-form :deep(.el-textarea__inner) {
+  width: 100%;
 }
 
 .approved-text {
@@ -298,5 +453,31 @@ function handleClose() {
 
 .text-muted {
   color: #c0c4cc;
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .audit-application-summary,
+  .audit-files-section,
+  .closure-audit-form {
+    padding: 13px;
+  }
+
+  .audit-summary-meta,
+  .audit-result-options,
+  .audit-file-list {
+    grid-template-columns: 1fr;
+  }
+
+  .dialog-footer {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dialog-footer .el-button {
+    width: 100%;
+    margin: 0;
+  }
 }
 </style>

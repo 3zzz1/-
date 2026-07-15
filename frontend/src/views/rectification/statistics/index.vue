@@ -1,10 +1,10 @@
 <template>
-  <div class="app-container">
+  <div class="app-container rect-stat-page">
     <overview-cards :items="overviewItems" />
 
-    <el-row :gutter="16" class="section-row">
-      <el-col :span="12">
-        <el-card shadow="hover">
+    <el-row :gutter="16" class="section-row chart-grid">
+      <el-col :xs="24" :sm="24" :md="12">
+        <el-card shadow="hover" class="stat-card">
           <template #header>
             <div class="card-header">
               <span>问题类型分布</span>
@@ -13,8 +13,8 @@
           <div ref="categoryChartRef" class="chart"></div>
         </el-card>
       </el-col>
-      <el-col :span="12">
-        <el-card shadow="hover">
+      <el-col :xs="24" :sm="24" :md="12">
+        <el-card shadow="hover" class="stat-card">
           <template #header>
             <div class="card-header">
               <span>整改状态分布</span>
@@ -27,9 +27,9 @@
 
     <el-row :gutter="16" class="section-row">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="stat-card">
           <template #header>
-            <div class="card-header">
+            <div class="card-header trend-header">
               <span>整改趋势</span>
               <el-radio-group v-model="trendType" size="small" @change="loadTrendChart">
                 <el-radio-button label="month">按月</el-radio-button>
@@ -44,13 +44,14 @@
 
     <el-row :gutter="16" class="section-row">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="stat-card">
           <template #header>
             <div class="card-header">
               <span>高频风险领域与资金挽回</span>
             </div>
           </template>
-          <el-table :data="riskAreaData" v-loading="riskLoading" stripe>
+
+          <el-table v-if="!isMobile" :data="riskAreaData" v-loading="riskLoading" stripe>
             <el-table-column prop="area" label="风险领域" min-width="160" show-overflow-tooltip />
             <el-table-column prop="count" label="问题数量" width="110" align="center" sortable />
             <el-table-column prop="completed" label="已整改" width="100" align="center" />
@@ -81,19 +82,52 @@
               </template>
             </el-table-column>
           </el-table>
+
+          <div v-else v-loading="riskLoading" class="mobile-list">
+            <div v-for="item in riskAreaData" :key="item.area" class="mobile-data-card">
+              <div class="mobile-card-title">
+                <span>{{ item.area }}</span>
+                <el-tag :type="item.overdue > 0 ? 'danger' : 'success'" effect="plain">
+                  逾期 {{ item.overdue || 0 }}
+                </el-tag>
+              </div>
+              <div class="mobile-metrics">
+                <div>
+                  <strong>{{ item.count || 0 }}</strong>
+                  <span>问题数量</span>
+                </div>
+                <div>
+                  <strong>{{ item.completed || 0 }}</strong>
+                  <span>已整改</span>
+                </div>
+                <div>
+                  <strong>{{ formatMoney(item.recoveryAmount) }}</strong>
+                  <span>资金挽回</span>
+                </div>
+              </div>
+              <el-progress
+                :percentage="Number(item.completionRate || 0)"
+                :color="progressColor(item.completionRate)"
+                :stroke-width="8"
+              />
+              <div class="mobile-suggestion">{{ riskSuggestion(item) }}</div>
+            </div>
+            <el-empty v-if="!riskLoading && riskAreaData.length === 0" description="暂无数据" :image-size="80" />
+          </div>
         </el-card>
       </el-col>
     </el-row>
 
     <el-row :gutter="16" class="section-row">
       <el-col :span="24">
-        <el-card shadow="hover">
+        <el-card shadow="hover" class="stat-card">
           <template #header>
             <div class="card-header">
               <span>重复发生问题统计</span>
             </div>
           </template>
-          <el-table :data="recurringData" v-loading="recurringLoading" stripe>
+
+          <el-table v-if="!isMobile" :data="recurringData" v-loading="recurringLoading" stripe>
             <el-table-column prop="issueType" label="重复问题/风险点" min-width="220" show-overflow-tooltip />
             <el-table-column prop="area" label="领域" width="120" align="center" />
             <el-table-column prop="occurrences" label="发生次数" width="110" align="center" sortable />
@@ -110,6 +144,32 @@
             </el-table-column>
             <el-table-column prop="suggestion" label="审计计划建议" min-width="260" show-overflow-tooltip />
           </el-table>
+
+          <div v-else v-loading="recurringLoading" class="mobile-list">
+            <div v-for="item in recurringData" :key="`${item.issueType}-${item.area}`" class="mobile-data-card">
+              <div class="mobile-card-title">
+                <span>{{ item.issueType || '未命名问题' }}</span>
+                <el-tag :type="riskTag(item.riskLevel)" effect="plain">{{ item.riskLevel || '-' }}</el-tag>
+              </div>
+              <div class="mobile-subtitle">{{ item.area || '未分类领域' }}</div>
+              <div class="mobile-metrics">
+                <div>
+                  <strong>{{ item.occurrences || 0 }}</strong>
+                  <span>发生次数</span>
+                </div>
+                <div>
+                  <strong>{{ item.completed || 0 }}</strong>
+                  <span>已整改</span>
+                </div>
+                <div>
+                  <strong :class="{ danger: item.overdue > 0 }">{{ item.overdue || 0 }}</strong>
+                  <span>逾期数</span>
+                </div>
+              </div>
+              <div class="mobile-suggestion">{{ item.suggestion || '暂无建议' }}</div>
+            </div>
+            <el-empty v-if="!recurringLoading && recurringData.length === 0" description="暂无数据" :image-size="80" />
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -141,16 +201,20 @@ const riskLoading = ref(false)
 const recurringLoading = ref(false)
 const riskAreaData = ref([])
 const recurringData = ref([])
+const categoryData = ref([])
+const statusData = ref([])
+const trendData = ref([])
+const isMobile = ref(window.innerWidth <= 768)
 
 const overviewItems = ref([
   { title: '问题总数', value: 0, unit: '个', icon: 'DataAnalysis' },
   { title: '整改完成率', value: '0%', unit: '', icon: 'CircleCheck' },
   { title: '逾期率', value: '0%', unit: '', icon: 'Warning' },
-  { title: '资金挽回规模', value: '¥0.00', unit: '', icon: 'Money' }
+  { title: '资金挽回规模', value: '￥0.00', unit: '', icon: 'Money' }
 ])
 
-const categoryColors = ['#409EFF', '#67C23A', '#E6A23C', '#F56C6C', '#909399', '#36CFC9']
-const statusColors = ['#909399', '#409EFF', '#E6A23C', '#67C23A', '#B37FEB']
+const categoryColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#64748b', '#14b8a6']
+const statusColors = ['#64748b', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6']
 
 onMounted(() => {
   nextTick(() => {
@@ -174,9 +238,18 @@ function initCharts() {
 }
 
 function handleResize() {
-  categoryChart?.resize()
-  statusChart?.resize()
-  trendChart?.resize()
+  const nextMobile = window.innerWidth <= 768
+  if (nextMobile !== isMobile.value) {
+    isMobile.value = nextMobile
+    updatePieChart(categoryData.value)
+    updateBarChart(statusData.value)
+    updateTrendChart(trendData.value)
+  }
+  setTimeout(() => {
+    categoryChart?.resize()
+    statusChart?.resize()
+    trendChart?.resize()
+  }, 80)
 }
 
 function loadAllData() {
@@ -195,15 +268,15 @@ function loadOverview() {
       { title: '问题总数', value: data.totalIssues || 0, unit: '个', icon: 'DataAnalysis' },
       { title: '整改完成率', value: `${data.completionRate || 0}%`, unit: '', icon: 'CircleCheck' },
       { title: '逾期率', value: `${data.overdueRate || 0}%`, unit: '', icon: 'Warning' },
-      { title: '资金挽回规模', value: `¥${formatMoney(data.totalRecoveryAmount || 0)}`, unit: '', icon: 'Money' }
+      { title: '资金挽回规模', value: `￥${formatMoney(data.totalRecoveryAmount || 0)}`, unit: '', icon: 'Money' }
     ]
   })
 }
 
 function loadCategoryChart() {
   getByCategory().then(res => {
-    const data = res.data || []
-    updatePieChart(data)
+    categoryData.value = res.data || []
+    updatePieChart(categoryData.value)
   })
 }
 
@@ -216,23 +289,30 @@ function updatePieChart(data) {
   }))
   categoryChart.setOption({
     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
-    legend: { type: 'scroll', orient: 'vertical', right: 10, top: 'center' },
+    legend: {
+      type: 'scroll',
+      orient: isMobile.value ? 'horizontal' : 'vertical',
+      left: isMobile.value ? 'center' : undefined,
+      right: isMobile.value ? undefined : 8,
+      bottom: isMobile.value ? 0 : undefined,
+      top: isMobile.value ? undefined : 'center'
+    },
     series: [{
       name: '问题类型',
       type: 'pie',
-      radius: ['45%', '70%'],
-      center: ['38%', '50%'],
-      label: { formatter: '{b}\n{d}%' },
+      radius: isMobile.value ? ['38%', '62%'] : ['45%', '70%'],
+      center: isMobile.value ? ['50%', '44%'] : ['38%', '50%'],
+      label: { show: !isMobile.value, formatter: '{b}\n{d}%' },
       itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
       data: chartData
     }]
-  })
+  }, true)
 }
 
 function loadStatusChart() {
   getByStatus().then(res => {
-    const data = res.data || []
-    updateBarChart(data)
+    statusData.value = res.data || []
+    updateBarChart(statusData.value)
   })
 }
 
@@ -242,13 +322,23 @@ function updateBarChart(data) {
   const values = data.map(item => item.count || item.value || 0)
   statusChart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    grid: { left: '3%', right: '8%', bottom: '3%', top: '8%', containLabel: true },
-    xAxis: { type: 'category', data: names },
-    yAxis: { type: 'value', name: '数量(个)' },
+    grid: {
+      left: isMobile.value ? 8 : '3%',
+      right: isMobile.value ? 8 : '8%',
+      bottom: isMobile.value ? 36 : '3%',
+      top: 20,
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      data: names,
+      axisLabel: { interval: 0, rotate: isMobile.value ? 28 : 0 }
+    },
+    yAxis: { type: 'value', name: isMobile.value ? '' : '数量(个)' },
     series: [{
       name: '数量',
       type: 'bar',
-      barWidth: '50%',
+      barWidth: isMobile.value ? '42%' : '50%',
       label: { show: true, position: 'top' },
       data: values.map((value, index) => ({
         value,
@@ -258,12 +348,13 @@ function updateBarChart(data) {
         }
       }))
     }]
-  })
+  }, true)
 }
 
 function loadTrendChart() {
   getTrend(trendType.value).then(res => {
-    updateTrendChart(res.data || [])
+    trendData.value = res.data || []
+    updateTrendChart(trendData.value)
   })
 }
 
@@ -275,16 +366,32 @@ function updateTrendChart(data) {
   const overdue = data.map(item => item.overdue || 0)
   trendChart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['发现问题', '已完成整改', '逾期问题'], bottom: 0 },
-    grid: { left: '3%', right: '4%', bottom: '12%', top: '8%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: periods },
-    yAxis: { type: 'value', name: '数量(个)' },
+    legend: {
+      data: ['发现问题', '已完成整改', '逾期问题'],
+      bottom: 0,
+      itemWidth: isMobile.value ? 10 : 18,
+      textStyle: { fontSize: isMobile.value ? 11 : 12 }
+    },
+    grid: {
+      left: isMobile.value ? 8 : '3%',
+      right: isMobile.value ? 10 : '4%',
+      bottom: isMobile.value ? 52 : '12%',
+      top: isMobile.value ? 20 : '8%',
+      containLabel: true
+    },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: periods,
+      axisLabel: { rotate: isMobile.value ? 28 : 0 }
+    },
+    yAxis: { type: 'value', name: isMobile.value ? '' : '数量(个)' },
     series: [
-      { name: '发现问题', type: 'line', smooth: true, data: discovered, itemStyle: { color: '#409EFF' } },
-      { name: '已完成整改', type: 'line', smooth: true, data: completed, itemStyle: { color: '#67C23A' } },
-      { name: '逾期问题', type: 'line', smooth: true, data: overdue, itemStyle: { color: '#F56C6C' }, lineStyle: { type: 'dashed' } }
+      { name: '发现问题', type: 'line', smooth: true, data: discovered, itemStyle: { color: '#3b82f6' } },
+      { name: '已完成整改', type: 'line', smooth: true, data: completed, itemStyle: { color: '#10b981' } },
+      { name: '逾期问题', type: 'line', smooth: true, data: overdue, itemStyle: { color: '#ef4444' }, lineStyle: { type: 'dashed' } }
     ]
-  })
+  }, true)
 }
 
 function loadRiskAreas() {
@@ -319,9 +426,9 @@ function formatMoney(val) {
 
 function progressColor(rate) {
   const value = Number(rate || 0)
-  if (value >= 80) return '#67C23A'
-  if (value >= 50) return '#E6A23C'
-  return '#F56C6C'
+  if (value >= 80) return '#10b981'
+  if (value >= 50) return '#f59e0b'
+  return '#ef4444'
 }
 
 function riskTag(level) {
@@ -339,12 +446,23 @@ function riskSuggestion(row) {
 </script>
 
 <style scoped lang="scss">
-.app-container {
+.rect-stat-page {
   padding: 16px;
+  background: #f5f7fb;
 }
 
 .section-row {
   margin-top: 16px;
+}
+
+.chart-grid {
+  row-gap: 16px;
+}
+
+.stat-card {
+  border-radius: 8px;
+  border: 1px solid #e8edf5;
+  overflow: hidden;
 }
 
 .chart {
@@ -359,30 +477,171 @@ function riskSuggestion(row) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  color: #1f2937;
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  line-height: 1.4;
 
   &::before {
     content: '';
-    display: inline-block;
+    flex: 0 0 auto;
     width: 4px;
     height: 16px;
-    background: #409EFF;
+    background: #3b82f6;
     border-radius: 2px;
-    margin-right: 8px;
+  }
+
+  > span {
+    flex: 1;
+    min-width: 0;
   }
 }
 
 .danger {
-  color: #f56c6c;
+  color: #ef4444;
 }
 
-:deep(.el-card) {
+.mobile-list {
+  display: grid;
+  gap: 12px;
+  min-height: 120px;
+}
+
+.mobile-data-card {
+  padding: 14px;
+  border: 1px solid #e5ebf4;
   border-radius: 8px;
+  background: #fff;
+}
+
+.mobile-card-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  color: #1f2937;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+
+  span:first-child {
+    min-width: 0;
+    word-break: break-word;
+  }
+}
+
+.mobile-subtitle {
+  margin-top: 6px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mobile-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+
+  div {
+    min-width: 0;
+    padding: 10px 8px;
+    border-radius: 8px;
+    background: #f8fafc;
+  }
+
+  strong,
+  span {
+    display: block;
+    min-width: 0;
+  }
+
+  strong {
+    color: #0f172a;
+    font-size: 16px;
+    line-height: 1.2;
+    word-break: break-all;
+  }
+
+  span {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 12px;
+  }
+}
+
+.mobile-suggestion {
+  margin-top: 10px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 :deep(.el-card__header) {
-  padding: 14px 20px;
+  padding: 14px 18px;
+  border-bottom-color: #edf2f7;
+}
+
+:deep(.el-card__body) {
+  padding: 16px;
+}
+
+@media (max-width: 768px) {
+  .rect-stat-page {
+    padding: 10px;
+  }
+
+  .section-row {
+    margin-top: 12px;
+  }
+
+  .chart-grid :deep(.el-col + .el-col) {
+    margin-top: 12px;
+  }
+
+  .chart {
+    height: 280px;
+  }
+
+  .trend-chart {
+    height: 300px;
+  }
+
+  .card-header {
+    align-items: flex-start;
+    font-size: 14px;
+  }
+
+  .trend-header {
+    display: grid;
+    grid-template-columns: 1fr;
+
+    :deep(.el-radio-group) {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 100%;
+    }
+
+    :deep(.el-radio-button__inner) {
+      width: 100%;
+      padding: 8px 10px;
+    }
+  }
+
+  :deep(.el-card__header) {
+    padding: 12px 14px;
+  }
+
+  :deep(.el-card__body) {
+    padding: 12px;
+  }
+
+  .mobile-metrics {
+    grid-template-columns: 1fr 1fr;
+
+    div:last-child {
+      grid-column: 1 / -1;
+    }
+  }
 }
 </style>

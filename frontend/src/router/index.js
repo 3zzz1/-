@@ -48,6 +48,19 @@ export const constantRoutes = [
     hidden: true
   },
   {
+    path: '/rectification/my-tasks',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/rectification/task/myTasks.vue'),
+        name: 'RectMyTasks',
+        meta: { title: '我的任务', activeMenu: '/rectification/my-tasks' }
+      }
+    ]
+  },
+  {
     path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),
     hidden: true

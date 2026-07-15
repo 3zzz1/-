@@ -1,10 +1,17 @@
 package com.audit.rectification.service.impl;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.xwpf.usermodel.ParagraphAlignment;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -13,29 +20,38 @@ import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import com.audit.rectification.domain.RectIssue;
+import com.audit.rectification.domain.RectPlan;
 import com.audit.rectification.domain.RectProgress;
 import com.audit.rectification.domain.RectTask;
 import com.audit.rectification.domain.dto.TaskDispatchDTO;
 import com.audit.rectification.mapper.RectIssueMapper;
+import com.audit.rectification.mapper.RectPlanMapper;
 import com.audit.rectification.mapper.RectProgressMapper;
 import com.audit.rectification.mapper.RectTaskMapper;
 import com.audit.rectification.service.IRectNotificationService;
 import com.audit.rectification.service.IRectTaskService;
+import com.ruoyi.common.exception.ServiceException;
+import com.ruoyi.common.core.domain.entity.SysUser;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.system.mapper.SysDeptMapper;
+import com.ruoyi.system.service.ISysUserService;
 
 @Service
 public class RectTaskServiceImpl implements IRectTaskService {
 
     private static final String[] UNIT_LIAISON_ROLES = { "audited_unit_liaison" };
-    private static final String[] UNIT_LEADER_ROLES = { "audited_unit_leader" };
+    private static final AtomicInteger TASK_NO_SEQUENCE = new AtomicInteger(0);
 
     @Autowired
     private RectTaskMapper rectTaskMapper;
 
     @Autowired
     private RectIssueMapper rectIssueMapper;
+
+    @Autowired
+    private RectPlanMapper rectPlanMapper;
 
     @Autowired
     private RectProgressMapper rectProgressMapper;
@@ -45,6 +61,9 @@ public class RectTaskServiceImpl implements IRectTaskService {
 
     @Autowired
     private SysDeptMapper sysDeptMapper;
+
+    @Autowired
+    private ISysUserService sysUserService;
 
     @Override
     public List<RectTask> selectRectTaskList(RectTask task) {
@@ -59,7 +78,7 @@ public class RectTaskServiceImpl implements IRectTaskService {
     @Override
     @Transactional
     public int insertRectTask(TaskDispatchDTO dto) {
-        String taskNo = "RW" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        String taskNo = nextTaskNo();
         RectTask task = new RectTask();
         task.setTaskNo(taskNo);
         if (dto.getIssueIds() != null && !dto.getIssueIds().isEmpty()) {
@@ -82,8 +101,9 @@ public class RectTaskServiceImpl implements IRectTaskService {
         task.setCreateTime(new Date());
         int rows = rectTaskMapper.insertRectTask(task);
 
-        addProgress(task.getTaskId(), null, "DISPATCH", "整改任务已下发，任务编号：" + taskNo);
-        notifyUnitRoles(task, "新的整改任务", "审计处已下发整改任务：" + taskNo + "，请及时确认并分办。");
+        addProgress(task.getTaskId(), firstIssueId(task), "DISPATCH", "整改任务已下发，任务编号：" + taskNo);
+        notifyUnitRoles(task, "整改任务已下发", "审计处已下发整改任务：" + taskNo
+                + "，请及时确认并分办。可在我的任务中下载整改通知书。");
 
         if (dto.getIssueIds() != null) {
             for (Long issueId : dto.getIssueIds()) {
@@ -123,7 +143,7 @@ public class RectTaskServiceImpl implements IRectTaskService {
         int rows = rectTaskMapper.updateRectTask(update);
 
         RectTask task = rectTaskMapper.selectRectTaskById(taskId);
-        addProgress(taskId, null, "CONFIRM", "整改任务已确认接收");
+        addProgress(taskId, firstIssueId(task), "CONFIRM", "整改任务已确认接收");
         if (task != null && task.getDispatchUserId() != null) {
             rectNotificationService.notifyUser(task.getDispatchUserId(), taskId, firstIssueId(task),
                     "整改任务已确认", "整改单位已确认接收任务：" + safeTaskNo(task));
@@ -143,14 +163,16 @@ public class RectTaskServiceImpl implements IRectTaskService {
         RectTask task = rectTaskMapper.selectRectTaskById(taskId);
         addProgress(taskId, firstIssueId(task), "ASSIGN", "整改任务已分办给责任人，用户ID：" + assignUserId);
         rectNotificationService.notifyUser(assignUserId, taskId, firstIssueId(task),
-                "整改任务已分办", "联络员已将整改任务分办给你：" + safeTaskNo(task) + "，请及时处理。");
+                "整改任务已分办", "联络员已将整改任务分办给你：" + safeTaskNo(task)
+                        + "，请及时处理。可在我的任务中下载整改通知书。");
         return rows;
     }
 
     @Override
     public void generateNotice(Long taskId, HttpServletResponse response) {
+        RectTask task = selectRectTaskById(taskId);
+        validateNoticeAccess(task);
         try {
-            RectTask task = selectRectTaskById(taskId);
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             String deptName = "";
             if (task != null && task.getRectDeptId() != null) {
@@ -160,8 +182,13 @@ public class RectTaskServiceImpl implements IRectTaskService {
                 }
             }
 
+            String fileName = URLEncoder.encode("整改通知书_" + taskId + ".docx", StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20");
             response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-            response.setHeader("Content-Disposition", "attachment; filename=notice_" + taskId + ".docx");
+            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+            response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=rectification_notice_" + taskId + ".docx; filename*=UTF-8''" + fileName);
 
             XWPFDocument doc = new XWPFDocument();
             XWPFParagraph p = doc.createParagraph();
@@ -175,6 +202,7 @@ public class RectTaskServiceImpl implements IRectTaskService {
             addSection(doc, "一、基本信息");
             addField(doc, "整改责任单位", deptName);
             addField(doc, "整改联络人", task != null ? task.getContactPerson() : "");
+            addField(doc, "整改责任人", resolveResponsibleNames(task.getTaskId()));
             addField(doc, "联系电话", task != null ? task.getContactPhone() : "");
             addField(doc, "任务编号", task != null ? task.getTaskNo() : "");
             addField(doc, "整改截止日期", task != null && task.getDeadline() != null ? sdf.format(task.getDeadline()) : "");
@@ -209,9 +237,66 @@ public class RectTaskServiceImpl implements IRectTaskService {
         }
     }
 
+    private void validateNoticeAccess(RectTask task) {
+        if (task == null) {
+            throw new ServiceException("整改任务不存在");
+        }
+        if (SecurityUtils.hasPermi("rectification:task:notice")) {
+            return;
+        }
+        boolean canManageUnitTask = SecurityUtils.hasPermi("rectification:task:confirm")
+                || SecurityUtils.hasPermi("rectification:task:assign");
+        if (canManageUnitTask
+                && Objects.equals(task.getRectDeptId(), SecurityUtils.getLoginUser().getDeptId())) {
+            return;
+        }
+        List<RectPlan> plans = rectPlanMapper.selectRectPlanByTaskId(task.getTaskId());
+        if (plans != null && plans.stream()
+                .anyMatch(plan -> Objects.equals(plan.getResponsibleUserId(), SecurityUtils.getUserId()))) {
+            return;
+        }
+        throw new ServiceException("无权下载该任务的整改通知书");
+    }
+
+    private String resolveResponsibleNames(Long taskId) {
+        List<RectPlan> plans = rectPlanMapper.selectRectPlanByTaskId(taskId);
+        Set<String> names = new LinkedHashSet<>();
+        if (plans != null) {
+            for (RectPlan plan : plans) {
+                if (plan.getResponsibleUserId() == null) {
+                    continue;
+                }
+                SysUser user = sysUserService.selectUserById(plan.getResponsibleUserId());
+                if (user == null) {
+                    continue;
+                }
+                String name = user.getNickName();
+                if (name == null || name.trim().isEmpty()) {
+                    name = user.getUserName();
+                }
+                if (name != null && !name.trim().isEmpty()) {
+                    names.add(name.trim());
+                }
+            }
+        }
+        return names.isEmpty() ? "待分办" : String.join("、", names);
+    }
+
     @Override
     public List<RectTask> selectMyTaskList() {
-        return rectTaskMapper.selectRectTaskListByDeptId(SecurityUtils.getLoginUser().getDeptId());
+        if (SecurityUtils.hasRole("admin") || SecurityUtils.hasRole("audit_director") || SecurityUtils.hasRole("audit_lead")) {
+            return rectTaskMapper.selectRectTaskList(new RectTask());
+        }
+        if (SecurityUtils.hasRole("audited_unit_leader")) {
+            return rectTaskMapper.selectRectTaskListForUnitLeader(SecurityUtils.getLoginUser().getDeptId());
+        }
+        if (SecurityUtils.hasRole("audited_unit_liaison")) {
+            return rectTaskMapper.selectRectTaskListByDeptId(SecurityUtils.getLoginUser().getDeptId());
+        }
+        if (SecurityUtils.hasRole("rect_responsible")) {
+            return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());
+        }
+        return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());
     }
 
     @Override
@@ -260,8 +345,8 @@ public class RectTaskServiceImpl implements IRectTaskService {
         if (task == null) {
             return;
         }
-        rectNotificationService.notifyRoles(UNIT_LIAISON_ROLES, task.getRectDeptId(), task.getTaskId(), firstIssueId(task), title, content);
-        rectNotificationService.notifyRoles(UNIT_LEADER_ROLES, task.getRectDeptId(), task.getTaskId(), firstIssueId(task), title, content);
+        Long issueId = firstIssueId(task);
+        rectNotificationService.notifyRoles(UNIT_LIAISON_ROLES, task.getRectDeptId(), task.getTaskId(), issueId, title, content);
     }
 
     private Long firstIssueId(RectTask task) {
@@ -298,6 +383,11 @@ public class RectTaskServiceImpl implements IRectTaskService {
 
     private String safeTaskNo(RectTask task) {
         return task != null && task.getTaskNo() != null ? task.getTaskNo() : "任务";
+    }
+
+    private String nextTaskNo() {
+        int sequence = TASK_NO_SEQUENCE.updateAndGet(value -> value >= 999 ? 1 : value + 1);
+        return "RW" + new SimpleDateFormat("yyyyMMddHHmmssSSS").format(new Date()) + String.format("%03d", sequence);
     }
 
     private String value(String value, String fallback) {

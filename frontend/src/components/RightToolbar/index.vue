@@ -1,6 +1,6 @@
 <template>
-  <div class="top-right-btn" :style="style">
-    <el-row>
+  <div class="top-right-btn right-toolbar" :style="style">
+    <el-row class="toolbar-buttons">
       <el-tooltip class="item" effect="dark" :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top" v-if="search">
         <el-button circle icon="Search" @click="toggleSearch()" />
       </el-tooltip>
@@ -130,5 +130,29 @@ function checkboxChange(event, label) {
 :deep(.el-dropdown-menu__item) {
   line-height: 30px;
   padding: 0 17px;
+}
+
+@media (max-width: 768px) {
+  .right-toolbar {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    margin-left: auto;
+  }
+
+  .toolbar-buttons {
+    display: flex !important;
+    flex-flow: row nowrap !important;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .toolbar-buttons :deep(.el-button) {
+    margin-left: 0 !important;
+  }
+
+  .toolbar-buttons :deep(.el-dropdown) {
+    padding-left: 0 !important;
+  }
 }
 </style>

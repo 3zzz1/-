@@ -51,4 +51,13 @@ const activeMenu = computed(() => {
   return path;
 })
 
+watch(
+  () => route.fullPath,
+  () => {
+    if (appStore.device === 'mobile' && appStore.sidebar.opened) {
+      appStore.closeSideBar({ withoutAnimation: false })
+    }
+  }
+)
+
 </script>

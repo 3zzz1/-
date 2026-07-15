@@ -179,7 +179,7 @@
 
 <script setup name="MaterialList">
 import { ref, reactive, onMounted, watch, getCurrentInstance } from 'vue'
-import { getToken } from '@/utils/auth'
+import { saveAs } from 'file-saver'
 import { listMaterial, delMaterial, downloadMaterial } from '@/api/rectification/material'
 
 const props = defineProps({
@@ -297,12 +297,21 @@ function getFileIcon(fileType, fileName) {
 function handlePreview(row) {
   previewFile.value = row
   const fileName = (row.fileName || '').toLowerCase()
-  const baseApi = import.meta.env.VITE_APP_BASE_API || ''
 
   if (/\.(png|jpg|jpeg|gif|bmp|webp|svg)$/.test(fileName)) {
-    // Image preview via download URL
     previewType.value = 'image'
-    previewUrl.value = baseApi + '/rectification/material/download/' + (row.id || row.materialId)
+    previewUrl.value = ''
+    const materialId = row.id || row.materialId
+    if (!materialId) {
+      proxy.$modal.msgWarning('材料ID不可用')
+      return
+    }
+    downloadMaterial(materialId).then(blob => {
+      if (previewUrl.value) {
+        window.URL.revokeObjectURL(previewUrl.value)
+      }
+      previewUrl.value = window.URL.createObjectURL(new Blob([blob], { type: imageMimeType(fileName) }))
+    })
   } else {
     previewType.value = 'file'
     previewUrl.value = ''
@@ -318,24 +327,36 @@ function handleDownload(row) {
     return
   }
   downloadMaterial(materialId)
-    .then((response) => {
-      // Handle blob response
-      const blob = response instanceof Blob ? response : new Blob([response.data] || [response])
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = row.fileName || `material_${materialId}`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+    .then((blob) => {
+      saveFileBlob(blob, row.fileName || `material_${materialId}`)
     })
-    .catch(() => {
-      // Fallback: open download URL directly
-      const baseApi = import.meta.env.VITE_APP_BASE_API || ''
-      const downloadUrl = baseApi + '/rectification/material/download/' + materialId
-      window.open(downloadUrl, '_blank')
-    })
+    .catch(() => {})
+}
+
+async function saveFileBlob(blob, filename) {
+  if (blob && blob.type === 'application/json') {
+    const text = await blob.text()
+    let data = {}
+    try {
+      data = JSON.parse(text)
+    } catch (e) {
+      data = {}
+    }
+    proxy.$modal.msgError(data.msg || '下载失败')
+    return
+  }
+  saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), filename)
+}
+
+function imageMimeType(fileName) {
+  const name = (fileName || '').toLowerCase()
+  if (name.endsWith('.png')) return 'image/png'
+  if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg'
+  if (name.endsWith('.gif')) return 'image/gif'
+  if (name.endsWith('.bmp')) return 'image/bmp'
+  if (name.endsWith('.webp')) return 'image/webp'
+  if (name.endsWith('.svg')) return 'image/svg+xml'
+  return 'image/*'
 }
 
 /** Delete material */

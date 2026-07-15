@@ -474,5 +474,69 @@ async function handleSubmit() {
       color: #909399;
     }
   }
+
+  @media (max-width: 768px) {
+    :deep(.el-card__header),
+    :deep(.el-card__body) {
+      padding: 12px;
+    }
+
+    .card-header {
+      align-items: stretch;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .header-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+
+      .el-button {
+        width: 100%;
+        margin-left: 0;
+      }
+    }
+
+    :deep(.el-form-item) {
+      display: block;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #edf1f7;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+
+    :deep(.el-form-item__label) {
+      display: block;
+      width: 100% !important;
+      height: auto;
+      margin-bottom: 7px;
+      padding: 0;
+      color: #53627a;
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: left;
+    }
+
+    :deep(.el-form-item__content) {
+      width: 100%;
+      margin-left: 0 !important;
+    }
+
+    :deep(.el-input),
+    :deep(.el-date-editor),
+    :deep(.el-textarea) {
+      width: 100% !important;
+    }
+
+    .editor-wrapper {
+      margin-bottom: 0;
+
+      :deep(.el-textarea__inner) {
+        min-height: 220px !important;
+      }
+    }
+  }
 }
 </style>

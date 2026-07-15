@@ -72,6 +72,7 @@
             <if test="readTime != null">read_time = #{readTime},</if>
         </set>
         where notification_id = #{notificationId}
+        <if test="recipientUserId != null">and recipient_user_id = #{recipientUserId}</if>
     </update>
 
     <select id="selectUnreadCount" parameterType="Long" resultType="int">
