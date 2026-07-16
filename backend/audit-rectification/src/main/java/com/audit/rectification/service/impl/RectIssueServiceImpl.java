@@ -20,7 +20,7 @@ import com.ruoyi.common.utils.SecurityUtils;
 @Service
 public class RectIssueServiceImpl implements IRectIssueService {
 
-    private static final String[] AUDIT_NOTICE_ROLES = { "admin", "audit_director", "audit_lead" };
+    private static final String[] AUDIT_NOTICE_ROLES = { "audit_director", "audit_lead" };
 
     @Autowired
     private RectIssueMapper rectIssueMapper;

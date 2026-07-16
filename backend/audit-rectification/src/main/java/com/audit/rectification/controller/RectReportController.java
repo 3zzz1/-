@@ -48,22 +48,33 @@ public class RectReportController extends BaseController {
     @Autowired
     private ISysUserService sysUserService;
 
-    @PreAuthorize("@ss.hasAnyPermi('rectification:report:query,rectification:report:add,rectification:report:generate,rectification:report:submit,rectification:report:approve') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasAnyPermi('rectification:report:query,rectification:report:add,rectification:report:generate,rectification:report:submit,rectification:report:approve') or @ss.hasAnyExactRoles('audited_unit_leader,school_leader')")
     @GetMapping(value = "/{taskId}")
     public AjaxResult getByTask(@PathVariable Long taskId) {
-        return success(rectReportService.selectRectReportByTaskId(taskId));
+        RectReport report = rectReportService.selectRectReportByTaskId(taskId);
+        if (SecurityUtils.hasExactRole("school_leader")
+                && (report == null || !"1".equals(report.getUnitApproveStatus()))) {
+            return success();
+        }
+        return success(report);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:report:add')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:report:add')")
     @PostMapping
     public AjaxResult add(@RequestBody RectReport report) {
         return toAjax(rectReportService.insertRectReport(report));
     }
 
-    @PreAuthorize("@ss.hasAnyPermi('rectification:report:generate,rectification:report:query,rectification:report:approve') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasAnyPermi('rectification:report:generate,rectification:report:query,rectification:report:approve') or @ss.hasAnyExactRoles('audited_unit_leader,school_leader')")
     @GetMapping("/word/{taskId}")
     public void downloadReport(@PathVariable Long taskId, HttpServletResponse response) {
         try {
+            RectReport report = rectReportService.selectRectReportByTaskId(taskId);
+            if (SecurityUtils.hasExactRole("school_leader")
+                    && (report == null || !"1".equals(report.getUnitApproveStatus()))) {
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "仅可阅览单位审批通过的最终整改报告");
+                return;
+            }
             String content = rectReportService.generateReport(taskId);
             response.setContentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
             response.setHeader("Access-Control-Expose-Headers", "Content-Disposition");
@@ -113,9 +124,9 @@ public class RectReportController extends BaseController {
     }
 
     private String buildReportFileName(Long taskId) {
-        String personName = resolveCurrentUserName();
+        String personName = resolveResponsiblePersonName(taskId);
         if (personName == null || personName.trim().isEmpty()) {
-            personName = "login_user";
+            personName = "rectification_responsible";
         }
         return sanitizeFileName(personName.trim()) + "\u6574\u6539\u62a5\u544a.docx";
     }
@@ -175,19 +186,19 @@ public class RectReportController extends BaseController {
         return "attachment; filename=\"report.docx\"; filename*=UTF-8''" + encoded;
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:report:generate')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:report:generate')")
     @PostMapping("/generate/{taskId}")
     public AjaxResult generate(@PathVariable Long taskId) {
         return success(rectReportService.generateReport(taskId));
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:report:submit')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:report:submit')")
     @PutMapping("/submit/{reportId}")
     public AjaxResult submit(@PathVariable Long reportId) {
         return toAjax(rectReportService.submitForApproval(reportId));
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:report:approve')")
+    @PreAuthorize("@ss.hasExactRole('audited_unit_leader') and @ss.hasPermi('rectification:report:approve')")
     @PutMapping("/leader-approve")
     public AjaxResult leaderApprove(@RequestBody Map<String, Object> params) {
         Long reportId = params.get("reportId") != null

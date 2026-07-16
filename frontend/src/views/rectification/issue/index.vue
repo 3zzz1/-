@@ -135,13 +135,13 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="责任单位" align="center" width="150">
+      <el-table-column label="问题责任单位" align="center" width="150">
         <template #default="scope">
           {{ deptName(scope.row.responsibleDeptId) }}
         </template>
       </el-table-column>
-      <el-table-column label="责任干部" align="center" prop="responsiblePerson" width="100" />
-      <el-table-column label="涉及金额" align="center" prop="issueAmount" width="120">
+      <el-table-column label="直接责任人" align="center" prop="responsiblePerson" width="100" />
+      <el-table-column v-if="!isSchoolLeader" label="涉及金额" align="center" prop="issueAmount" width="120">
         <template #default="scope">
           <span v-if="scope.row.issueAmount">{{ scope.row.issueAmount.toLocaleString() }}</span>
           <span v-else>-</span>
@@ -194,16 +194,16 @@
         </div>
 
         <div class="issue-card-meta">
-          <span>
+          <span v-if="!isSchoolLeader">
             <em>来源</em>
             <b>{{ sourceTypeLabel(item.sourceType) }}</b>
           </span>
           <span>
-            <em>责任单位</em>
+            <em>问题责任单位</em>
             <b>{{ deptName(item.responsibleDeptId) || '-' }}</b>
           </span>
           <span>
-            <em>责任干部</em>
+            <em>直接责任人</em>
             <b>{{ item.responsiblePerson || '-' }}</b>
           </span>
           <span>
@@ -302,15 +302,15 @@
         </el-form-item>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="责任单位" prop="responsibleDeptId">
-              <el-select v-model="form.responsibleDeptId" placeholder="请选择责任单位" style="width: 100%">
+            <el-form-item label="问题责任单位" prop="responsibleDeptId">
+              <el-select v-model="form.responsibleDeptId" placeholder="请选择问题责任单位" style="width: 100%" @change="handleResponsibleDeptChange">
                 <el-option v-for="d in deptList" :key="d.deptId" :label="d.deptName" :value="d.deptId" />
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="责任干部">
-              <el-select v-model="form.responsiblePerson" filterable allow-create clearable placeholder="先选责任单位，再选干部" style="width: 100%" :disabled="!form.responsibleDeptId" @focus="loadDeptUsers">
+            <el-form-item label="直接责任人">
+              <el-select v-model="form.responsiblePerson" filterable allow-create clearable placeholder="选择或录入直接责任人" style="width: 100%" :disabled="!form.responsibleDeptId" @focus="loadDeptUsers">
                 <el-option v-for="u in userList" :key="u.userId" :label="u.nickName || u.userName" :value="u.nickName || u.userName" />
               </el-select>
             </el-form-item>
@@ -359,9 +359,9 @@
         </el-descriptions-item>
         <el-descriptions-item label="问题标题" :span="2">{{ detail.issueTitle }}</el-descriptions-item>
         <el-descriptions-item label="问题分类">{{ detail.issueCategory }}</el-descriptions-item>
-        <el-descriptions-item label="涉及金额">{{ detail.issueAmount ? detail.issueAmount.toLocaleString() : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="责任单位">{{ deptName(detail.responsibleDeptId) }}</el-descriptions-item>
-        <el-descriptions-item label="责任干部">{{ detail.responsiblePerson }}</el-descriptions-item>
+        <el-descriptions-item v-if="!isSchoolLeader" label="涉及金额">{{ detail.issueAmount ? detail.issueAmount.toLocaleString() : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="问题责任单位">{{ deptName(detail.responsibleDeptId) }}</el-descriptions-item>
+        <el-descriptions-item label="直接责任人">{{ detail.responsiblePerson }}</el-descriptions-item>
         <el-descriptions-item label="风险等级">
           <el-tag v-if="detail.riskLevel" :type="riskLevelTag(detail.riskLevel)">{{ riskLevelLabel(detail.riskLevel) }}</el-tag>
         </el-descriptions-item>
@@ -371,7 +371,7 @@
         <el-descriptions-item label="截止日期">{{ detail.deadline }}</el-descriptions-item>
         <el-descriptions-item label="来源描述" :span="2">{{ detail.sourceDesc || '-' }}</el-descriptions-item>
         <el-descriptions-item label="问题描述" :span="2">{{ detail.issueDesc || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="定性法规依据" :span="2">{{ detail.legalBasis || '-' }}</el-descriptions-item>
+        <el-descriptions-item v-if="!isSchoolLeader" label="定性法规依据" :span="2">{{ detail.legalBasis || '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <div class="dialog-footer">
@@ -388,8 +388,11 @@ import { listIssue, getIssue, addIssue, updateIssue, delIssue, syncIssue } from 
 import request from '@/utils/request'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import MobileFilterBar from '@/components/MobileFilterBar/index.vue'
+import useUserStore from '@/store/modules/user'
 
 const { proxy } = getCurrentInstance()
+const userStore = useUserStore()
+const isSchoolLeader = computed(() => (userStore.roles || []).includes('school_leader'))
 
 const issueList = ref([])
 const open = ref(false)
@@ -407,9 +410,15 @@ const userList = ref([])
 
 function loadDeptUsers() {
   if (!form.value.responsibleDeptId) return
-  request({ url: '/system/user/list', method: 'get', params: { deptId: form.value.responsibleDeptId, pageSize: 100 } })
-    .then(res => { userList.value = res.rows || [] })
+  request({ url: '/rectification/issue/dept-users', method: 'get', params: { deptId: form.value.responsibleDeptId } })
+    .then(res => { userList.value = res.data || [] })
     .catch(() => { userList.value = [] })
+}
+
+function handleResponsibleDeptChange() {
+  form.value.responsiblePerson = undefined
+  userList.value = []
+  loadDeptUsers()
 }
 
 const data = reactive({
@@ -431,7 +440,7 @@ const data = reactive({
     issueTitle: [{ required: true, message: '问题标题不能为空', trigger: 'blur' }],
     sourceType: [{ required: true, message: '来源类型不能为空', trigger: 'change' }],
     issueCategory: [{ required: true, message: '问题分类不能为空', trigger: 'change' }],
-    responsibleDeptId: [{ required: true, message: '责任单位不能为空', trigger: 'blur' }]
+    responsibleDeptId: [{ required: true, message: '问题责任单位不能为空', trigger: 'blur' }]
   }
 })
 

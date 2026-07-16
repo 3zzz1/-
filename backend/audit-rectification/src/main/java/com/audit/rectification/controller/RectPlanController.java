@@ -2,6 +2,7 @@ package com.audit.rectification.controller;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,6 +24,8 @@ import com.audit.rectification.service.IRectExtensionService;
 import com.audit.rectification.service.IRectPlanService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
+import com.ruoyi.common.core.domain.entity.SysUser;
+import com.ruoyi.system.service.ISysUserService;
 
 /**
  * 审计整改方案Controller
@@ -40,10 +43,25 @@ public class RectPlanController extends BaseController {
     @Autowired
     private IRectExtensionService rectExtensionService;
 
+    @Autowired
+    private ISysUserService sysUserService;
+
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:plan:query')")
+    @GetMapping("/user-name/{userId}")
+    public AjaxResult getUserName(@PathVariable Long userId) {
+        SysUser user = sysUserService.selectUserById(userId);
+        Map<String, Object> result = new HashMap<>();
+        result.put("userId", userId);
+        result.put("displayName", user == null ? ""
+                : (user.getNickName() != null && !user.getNickName().trim().isEmpty()
+                        ? user.getNickName() : user.getUserName()));
+        return success(result);
+    }
+
     /**
      * 根据任务ID查询整改方案
      */
-    @PreAuthorize("@ss.hasPermi('rectification:plan:query')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:plan:query')")
     @GetMapping(value = "/{taskId}")
     public AjaxResult getByTask(@PathVariable Long taskId) {
         return success(rectPlanService.selectRectPlanByTaskId(taskId));
@@ -55,7 +73,7 @@ public class RectPlanController extends BaseController {
         return success(rectExtensionService.selectLatestByTaskId(taskId));
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:plan:change:approve')")
+    @PreAuthorize("@ss.hasAnyExactRoles('audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
     @GetMapping("/change/pending")
     public AjaxResult pendingChanges() {
         List<RectExtension> list = rectExtensionService.selectPendingList();
@@ -121,7 +139,7 @@ public class RectPlanController extends BaseController {
     /**
      * 审批延期申请
      */
-    @PreAuthorize("@ss.hasPermi('rectification:plan:change:approve')")
+    @PreAuthorize("@ss.hasAnyExactRoles('audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
     @PutMapping("/extension/approve")
     public AjaxResult approveExtension(@RequestBody Map<String, Object> params) {
         Long extensionId = params.get("extensionId") != null

@@ -82,9 +82,9 @@
               <el-descriptions-item label="问题分类">
                 <el-tag>{{ categoryLabel(issueInfo.issueCategory) }}</el-tag>
               </el-descriptions-item>
-              <el-descriptions-item label="涉及金额">{{ formatAmount(issueInfo.issueAmount) }}</el-descriptions-item>
-              <el-descriptions-item label="责任单位">{{ deptName(issueInfo.responsibleDeptId) }}</el-descriptions-item>
-              <el-descriptions-item label="责任干部">{{ issueInfo.responsiblePerson || '-' }}</el-descriptions-item>
+              <el-descriptions-item v-if="!isSchoolLeader" label="涉及金额">{{ formatAmount(issueInfo.issueAmount) }}</el-descriptions-item>
+              <el-descriptions-item label="问题责任单位">{{ deptName(issueInfo.responsibleDeptId) }}</el-descriptions-item>
+              <el-descriptions-item label="直接责任人">{{ issueInfo.responsiblePerson || '-' }}</el-descriptions-item>
               <el-descriptions-item label="风险等级">
                 <el-tag :type="riskLevelTag(issueInfo.riskLevel)">{{ riskLevelLabel(issueInfo.riskLevel) }}</el-tag>
               </el-descriptions-item>
@@ -92,25 +92,27 @@
                 <el-tag :type="issueStatusTag(issueInfo.status)">{{ issueStatusLabel(issueInfo.status) }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="问题描述" :span="2">{{ issueInfo.issueDesc || '-' }}</el-descriptions-item>
-              <el-descriptions-item label="定性法规依据" :span="2">{{ issueInfo.legalBasis || '-' }}</el-descriptions-item>
+              <el-descriptions-item v-if="!isSchoolLeader" label="定性法规依据" :span="2">{{ issueInfo.legalBasis || '-' }}</el-descriptions-item>
             </el-descriptions>
             <template v-else-if="issueInfo.issueNo">
               <div class="compact-info-grid">
                 <div><span>问题编号</span><strong>{{ issueInfo.issueNo }}</strong></div>
                 <div><span>来源类型</span><strong>{{ sourceTypeLabel(issueInfo.sourceType) }}</strong></div>
                 <div><span>问题分类</span><strong>{{ categoryLabel(issueInfo.issueCategory) }}</strong></div>
-                <div><span>涉及金额</span><strong>{{ formatAmount(issueInfo.issueAmount) }}</strong></div>
-                <div><span>责任干部</span><strong>{{ issueInfo.responsiblePerson || '-' }}</strong></div>
+                <div v-if="!isSchoolLeader"><span>涉及金额</span><strong>{{ formatAmount(issueInfo.issueAmount) }}</strong></div>
+                <div><span>直接责任人</span><strong>{{ issueInfo.responsiblePerson || '-' }}</strong></div>
                 <div><span>风险等级</span><strong>{{ riskLevelLabel(issueInfo.riskLevel) }}</strong></div>
                 <div><span>问题状态</span><strong>{{ issueStatusLabel(issueInfo.status) }}</strong></div>
               </div>
-              <el-collapse v-if="issueInfo.issueDesc || issueInfo.legalBasis" class="issue-detail-collapse">
+              <el-collapse v-if="issueInfo.issueDesc || (!isSchoolLeader && issueInfo.legalBasis)" class="issue-detail-collapse">
                 <el-collapse-item title="查看问题说明与定性依据" name="issue-detail">
                   <div class="collapsed-detail">
                     <span>问题描述</span>
                     <p>{{ issueInfo.issueDesc || '-' }}</p>
-                    <span>定性法规依据</span>
-                    <p>{{ issueInfo.legalBasis || '-' }}</p>
+                    <template v-if="!isSchoolLeader">
+                      <span>定性法规依据</span>
+                      <p>{{ issueInfo.legalBasis || '-' }}</p>
+                    </template>
                   </div>
                 </el-collapse-item>
               </el-collapse>
@@ -120,31 +122,33 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="整改方案" name="plan">
+      <el-tab-pane v-if="canViewPlan" label="整改方案" name="plan">
         <div class="tab-content">
           <PlanEditor :task-id="taskId" />
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="整改报告" name="report">
+      <el-tab-pane v-if="canViewReport" label="整改报告" name="report">
         <div class="tab-content">
-          <ReportEditor :task-id="taskId" :task-status="taskInfo.status" />
+          <ReportEditor :task-id="taskId" :task-status="taskInfo.status" :read-only="!isResponsible" />
+          <template v-if="canViewMaterials">
           <el-divider />
           <div class="material-header">
             <span class="card-title">佐证材料附件</span>
-            <el-button type="primary" icon="Upload" size="small" native-type="button" @click.prevent="uploadOpen = true">上传佐证</el-button>
+            <el-button v-if="isResponsible" v-hasPermi="['rectification:material:upload']" type="primary" icon="Upload" size="small" native-type="button" @click.prevent="uploadOpen = true">上传佐证</el-button>
           </div>
           <div v-if="materialList.length > 0" class="material-list">
-            <el-tag
+            <div
               v-for="m in materialList"
               :key="m.materialId"
-              closable
-              type="info"
-              class="material-tag"
-              @close="handleDeleteMaterial(m.materialId)"
+              class="material-file"
             >
-              {{ m.fileName }}
-            </el-tag>
+              <span class="material-name">{{ m.fileName }}</span>
+              <div class="material-actions">
+                <el-button link type="primary" icon="Download" title="下载附件" @click="handleDownloadMaterial(m)" />
+                <el-button v-if="canDeleteMaterial" link type="danger" icon="Delete" title="删除附件" @click="handleDeleteMaterial(m.materialId)" />
+              </div>
+            </div>
           </div>
           <el-empty v-else description="暂无佐证材料" />
           <MaterialUpload
@@ -153,7 +157,7 @@
             :issue-id="issueInfo.issueId"
             @success="handleMaterialUploaded"
           />
-          <div v-if="reportData.unitApproveStatus" class="approval-info">
+          <div v-if="reportData.unitApproveStatus && !isAuditViewer" class="approval-info">
             <el-divider content-position="left">单位负责人审批信息</el-divider>
             <el-descriptions :column="descriptionColumns" border>
               <el-descriptions-item label="审批结果">
@@ -167,24 +171,7 @@
               </el-descriptions-item>
             </el-descriptions>
           </div>
-          <el-button
-            v-if="reportData.reportId && reportData.status === '1'"
-            v-hasPermi="['rectification:report:approve']"
-            type="warning"
-            icon="Checked"
-            @click="approvalOpen = true"
-          >
-            审批报告
-          </el-button>
-          <LeaderApproval
-            v-model="approvalOpen"
-            :report-id="reportData.reportId"
-            :task-id="taskId"
-            :content="reportData.reportContent || ''"
-            :report="reportData"
-            :materials="materialList"
-            @success="loadReport"
-          />
+          </template>
         </div>
       </el-tab-pane>
 
@@ -203,7 +190,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTask } from '@/api/rectification/task'
 import { getIssue } from '@/api/rectification/issue'
-import { listMaterial, delMaterial } from '@/api/rectification/material'
+import { listMaterial, delMaterial, downloadMaterial } from '@/api/rectification/material'
+import { saveAs } from 'file-saver'
 import { getReport } from '@/api/rectification/report'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
@@ -213,7 +201,6 @@ import request from '@/utils/request'
 const PlanEditor = defineAsyncComponent(() => import('../plan/PlanEditor.vue'))
 const MaterialUpload = defineAsyncComponent(() => import('../material/MaterialUpload.vue'))
 const ReportEditor = defineAsyncComponent(() => import('../report/ReportEditor.vue'))
-const LeaderApproval = defineAsyncComponent(() => import('../report/LeaderApproval.vue'))
 const TaskTimeline = defineAsyncComponent(() => import('./components/TaskTimeline.vue'))
 
 const router = useRouter()
@@ -221,12 +208,31 @@ const route = useRoute()
 const appStore = useAppStore()
 const userStore = useUserStore()
 const isMobile = computed(() => appStore.device === 'mobile')
+const isLiaison = computed(() => (userStore.roles || []).includes('audited_unit_liaison'))
+const isAuditStaff = computed(() => (userStore.roles || []).includes('audit_staff'))
+const isSchoolLeader = computed(() => (userStore.roles || []).includes('school_leader'))
+const isResponsible = computed(() => (userStore.roles || []).includes('rect_responsible'))
+const isSystemAdmin = computed(() => (userStore.roles || []).includes('admin'))
+const isAuditViewer = computed(() => {
+  const roles = userStore.roles || []
+  return roles.some(role => ['audit_director', 'audit_lead', 'audit_staff'].includes(role))
+})
+const canViewPlan = computed(() => isResponsible.value)
+const canViewReport = computed(() => !isLiaison.value && !isSystemAdmin.value)
+const canViewMaterials = computed(() => {
+  if (isSchoolLeader.value || isSystemAdmin.value) return false
+  const permissions = userStore.permissions || []
+  return isResponsible.value || isAuditViewer.value
+    || permissions.includes('rectification:material:list')
+    || permissions.includes('rectification:material:download')
+})
+const canDeleteMaterial = computed(() => isResponsible.value && (userStore.permissions || []).includes('rectification:material:remove'))
 const descriptionColumns = computed(() => isMobile.value ? 1 : 2)
 
 const taskId = ref(route.params.taskId)
-const activeTab = ref(route.query.tab || 'basic')
+const requestedTab = route.query.tab || 'basic'
+const activeTab = ref((!canViewPlan.value && requestedTab === 'plan') || (!canViewReport.value && requestedTab === 'report') ? 'basic' : requestedTab)
 const uploadOpen = ref(false)
-const approvalOpen = ref(false)
 
 const taskInfo = ref({})
 const issueInfo = ref({})
@@ -240,14 +246,14 @@ const latestChangeStatus = ref('')
 const isUnitLeader = computed(() => (userStore.roles || []).includes('audited_unit_leader'))
 const isAuditManager = computed(() => {
   const roles = userStore.roles || []
-  return roles.includes('admin') || roles.includes('audit_director') || roles.includes('audit_lead')
+  return roles.includes('audit_director') || roles.includes('audit_lead')
 })
 const changeApprovalMode = computed(() => {
   return (isUnitLeader.value && latestChangeStatus.value === '0')
     || (isAuditManager.value && latestChangeStatus.value === '1')
 })
 
-const rectifyDeptName = computed(() => deptName(taskInfo.value.rectDeptId))
+const rectifyDeptName = computed(() => taskInfo.value.rectDeptName || deptName(taskInfo.value.rectDeptId))
 const isTaskOverdue = computed(() => {
   if (!taskInfo.value.deadline || ['3', '4'].includes(String(taskInfo.value.status))) return false
   return new Date(taskInfo.value.deadline).getTime() < new Date().setHours(0, 0, 0, 0)
@@ -365,10 +371,10 @@ function loadTaskInfo() {
     if (issueId) {
       getIssue(issueId).then(res => {
         issueInfo.value = res.data || {}
-        loadMaterials()
+        if (canViewMaterials.value) loadMaterials()
       }).catch(() => {})
     }
-    loadReport()
+    if (canViewReport.value) loadReport()
   }).finally(() => {
     loading.value = false
   })
@@ -404,12 +410,28 @@ function handleDeleteMaterial(materialId) {
   }).catch(() => {})
 }
 
+function handleDownloadMaterial(material) {
+  const materialId = material.materialId || material.id
+  if (!materialId) {
+    ElMessage.warning('材料ID不可用')
+    return
+  }
+  downloadMaterial(materialId).then(async blob => {
+    if (blob && blob.type === 'application/json') {
+      const data = JSON.parse(await blob.text())
+      ElMessage.error(data.msg || '附件下载失败')
+      return
+    }
+    saveAs(new Blob([blob], { type: blob?.type || 'application/octet-stream' }), material.fileName || `附件_${materialId}`)
+  })
+}
+
 function handleMaterialUploaded() {
   loadMaterials()
 }
 
 function goBack() {
-  router.push('/rectification/my-tasks')
+  router.push((isAuditStaff.value || isSchoolLeader.value) ? '/rectification/task' : '/rectification/my-tasks')
 }
 
 function loadPageContext() {
@@ -550,11 +572,30 @@ onMounted(() => {
   font-weight: 600;
 }
 .material-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
   margin-bottom: 10px;
 }
-.material-tag {
-  margin-right: 8px;
-  margin-bottom: 4px;
+.material-file {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid #e5eaf1;
+  border-radius: 6px;
+  background: #fafbfd;
+}
+.material-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #405269;
+}
+.material-actions {
+  display: flex;
+  flex: 0 0 auto;
 }
 .mb20 {
   margin-bottom: 20px;
@@ -686,11 +727,8 @@ onMounted(() => {
     padding: 4px 0;
   }
 
-  .material-tag {
-    max-width: 100%;
-    white-space: normal;
-    height: auto;
-    line-height: 1.5;
+  .material-file {
+    padding: 10px;
   }
 
   .detail-summary {

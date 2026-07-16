@@ -115,7 +115,7 @@ public class RectExtensionServiceImpl implements IRectExtensionService {
         }
         addProgress(existing, progressType, progressContent);
         if (passed && "0".equals(existing.getStatus())) {
-            rectNotificationService.notifyRoles(new String[] { "admin", "audit_director", "audit_lead" }, null,
+            rectNotificationService.notifyRoles(new String[] { "audit_director", "audit_lead" }, null,
                     existing.getTaskId(), existing.getIssueId(), "方案变更待审计处审批",
                     changeTypeName(existing) + "已通过单位审批，请进行最终审批。任务：" + task.getTaskNo());
         } else {
@@ -133,7 +133,7 @@ public class RectExtensionServiceImpl implements IRectExtensionService {
     @Override
     public List<RectExtension> selectPendingList() {
         RectExtension query = new RectExtension();
-        if (SecurityUtils.hasRole("audited_unit_leader")) {
+        if (SecurityUtils.hasExactRole("audited_unit_leader")) {
             query.setStatus("0");
             List<RectExtension> result = new ArrayList<>();
             for (RectExtension item : rectExtensionMapper.selectRectExtensionList(query)) {
@@ -175,14 +175,14 @@ public class RectExtensionServiceImpl implements IRectExtensionService {
     }
 
     private void validateUnitApprover(RectTask task) {
-        if (!SecurityUtils.hasRole("audited_unit_leader") || task == null
+        if (!SecurityUtils.hasExactRole("audited_unit_leader") || task == null
                 || !Objects.equals(task.getRectDeptId(), SecurityUtils.getLoginUser().getDeptId())) {
             throw new ServiceException("仅本单位负责人可以审批");
         }
     }
 
     private void validateAuditApprover() {
-        if (!SecurityUtils.hasRole("admin") && !SecurityUtils.hasRole("audit_director") && !SecurityUtils.hasRole("audit_lead")) {
+        if (!SecurityUtils.hasExactRole("audit_director") && !SecurityUtils.hasExactRole("audit_lead")) {
             throw new ServiceException("仅审计处负责人可以审批");
         }
     }

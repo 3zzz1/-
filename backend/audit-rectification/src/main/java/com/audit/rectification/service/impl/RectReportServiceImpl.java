@@ -75,7 +75,7 @@ public class RectReportServiceImpl implements IRectReportService {
     @Override
     public String generateReport(Long taskId) {
         StringBuilder sb = new StringBuilder();
-        sb.append("【整改报告】\n\n一、整改方案\n");
+        sb.append("一、整改方案\n");
         List<RectPlan> plans = rectPlanMapper.selectRectPlanByTaskId(taskId);
         if (plans != null && !plans.isEmpty()) {
             sb.append(plans.get(0).getPlanContent() != null ? plans.get(0).getPlanContent() : "待填报");

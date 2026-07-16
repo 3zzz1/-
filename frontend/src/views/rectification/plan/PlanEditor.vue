@@ -218,7 +218,7 @@
 
 <script setup name="PlanEditor">
 import { ref, reactive, computed, onMounted, watch, getCurrentInstance } from 'vue'
-import { getPlan, addPlan, updatePlan, applyExtension, applyLongTerm, approveExtension, getLatestPlanChange } from '@/api/rectification/plan'
+import { getPlan, getPlanUserName, addPlan, updatePlan, applyExtension, applyLongTerm, approveExtension, getLatestPlanChange } from '@/api/rectification/plan'
 import { getReport } from '@/api/rectification/report'
 import request from '@/utils/request'
 import useUserStore from '@/store/modules/user'
@@ -251,7 +251,7 @@ const isResponsible = computed(() => (userStore.roles || []).includes('rect_resp
 const isUnitLeader = computed(() => (userStore.roles || []).includes('audited_unit_leader'))
 const isAuditManager = computed(() => {
   const roles = userStore.roles || []
-  return roles.includes('admin') || roles.includes('audit_director') || roles.includes('audit_lead')
+  return roles.includes('audit_director') || roles.includes('audit_lead')
 })
 
 const latestChange = reactive({
@@ -397,7 +397,7 @@ function loadPlan() {
     taskDeadline.value = (res.data || {}).deadline || ''
   }).catch(() => {})
   const changeRequest = loadLatestChange()
-  if (isUnitLeader.value) {
+  if (isUnitLeader.value || isAuditManager.value) {
     Promise.all([taskRequest, changeRequest]).finally(() => {
       loading.value = false
     })
@@ -423,8 +423,8 @@ function loadPlan() {
         form.plannedCompletionDate = data.planDeadline || data.plannedCompletionDate || undefined
         form.responsiblePerson = data.responsiblePerson || data.rectifyPerson || ''
         if (data.responsibleUserId) {
-          request({ url: '/system/user/list', method: 'get', params: { userId: data.responsibleUserId } })
-            .then(res => { const u = (res.rows||[])[0]; if (u) assignedUserName.value = u.nickName || u.userName })
+          getPlanUserName(data.responsibleUserId)
+            .then(res => { assignedUserName.value = (res.data || {}).displayName || '' })
         }
         form.remark = data.remark || ''
         planInfo.id = data.id || data.planId || null

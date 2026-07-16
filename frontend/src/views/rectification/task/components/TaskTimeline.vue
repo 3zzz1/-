@@ -69,7 +69,7 @@
       <div v-if="progressList.length > 0" class="timeline-summary">
         <el-divider content-position="left">进展统计</el-divider>
         <el-row :gutter="16">
-          <el-col :span="6" v-for="stat in progressStats" :key="stat.label">
+          <el-col :xs="12" :sm="6" v-for="stat in progressStats" :key="stat.label" class="stat-col">
             <div class="stat-item" :style="{ borderLeftColor: stat.color }">
               <div class="stat-count">{{ stat.count }}</div>
               <div class="stat-label">{{ stat.label }}</div>
@@ -413,8 +413,22 @@ watch(() => props.taskId, loadProgress, { immediate: true })
   .timeline-summary {
     margin-top: 24px;
 
+    :deep(.el-row) {
+      row-gap: 12px;
+    }
+
+    .stat-col {
+      display: flex;
+    }
+
     .stat-item {
+      width: 100%;
+      min-height: 76px;
       padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       border-left: 3px solid #409eff;
       background: #fafafa;
       border-radius: 4px;
@@ -433,6 +447,18 @@ watch(() => props.taskId, loadProgress, { immediate: true })
         margin-top: 4px;
       }
     }
+  }
+}
+
+@media (max-width: 768px) {
+  .task-timeline .timeline-summary .stat-item {
+    height: 76px;
+    min-height: 76px;
+    padding: 10px 12px;
+  }
+
+  .task-timeline .timeline-summary .stat-label {
+    white-space: nowrap;
   }
 }
 </style>

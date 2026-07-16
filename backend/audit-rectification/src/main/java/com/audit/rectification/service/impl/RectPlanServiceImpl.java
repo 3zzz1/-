@@ -14,6 +14,8 @@ import com.audit.rectification.mapper.RectTaskMapper;
 import com.audit.rectification.service.IRectNotificationService;
 import com.audit.rectification.service.IRectPlanService;
 import com.ruoyi.common.utils.SecurityUtils;
+import com.ruoyi.common.core.domain.entity.SysUser;
+import com.ruoyi.system.mapper.SysUserMapper;
 
 @Service
 public class RectPlanServiceImpl implements IRectPlanService {
@@ -26,6 +28,8 @@ public class RectPlanServiceImpl implements IRectPlanService {
     private RectTaskMapper rectTaskMapper;
     @Autowired
     private IRectNotificationService rectNotificationService;
+    @Autowired
+    private SysUserMapper userMapper;
 
     @Override
     public RectPlan selectRectPlanByTaskId(Long taskId) {
@@ -59,6 +63,9 @@ public class RectPlanServiceImpl implements IRectPlanService {
             return;
         }
         RectTask task = rectTaskMapper.selectRectTaskById(plan.getTaskId());
+        SysUser responsibleUser = userMapper.selectUserById(plan.getResponsibleUserId());
+        String responsibleName = responsibleUser != null && responsibleUser.getNickName() != null
+                ? responsibleUser.getNickName() : String.valueOf(plan.getResponsibleUserId());
         String taskNo = task != null && task.getTaskNo() != null ? task.getTaskNo() : "整改任务";
         rectNotificationService.notifyUser(plan.getResponsibleUserId(), plan.getTaskId(), plan.getIssueId(),
                 "整改任务已分办", "联络员已将整改任务分办给你：" + taskNo
@@ -68,7 +75,7 @@ public class RectPlanServiceImpl implements IRectPlanService {
         progress.setTaskId(plan.getTaskId());
         progress.setIssueId(plan.getIssueId());
         progress.setProgressType("ASSIGN");
-        progress.setContent("整改任务已分办给责任人，用户ID：" + plan.getResponsibleUserId());
+        progress.setContent("整改任务已分办给整改执行人：" + responsibleName);
         progress.setOperatorId(SecurityUtils.getUserId());
         progress.setOperatorName(SecurityUtils.getUsername());
         progress.setOperateTime(new Date());

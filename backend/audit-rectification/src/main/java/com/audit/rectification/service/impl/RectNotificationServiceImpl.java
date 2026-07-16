@@ -2,6 +2,7 @@ package com.audit.rectification.service.impl;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
 
     @Override
     public List<RectNotification> selectMyNotificationList() {
+        if (SecurityUtils.isAdmin()) {
+            return Collections.emptyList();
+        }
         RectNotification query = new RectNotification();
         query.setRecipientUserId(SecurityUtils.getUserId());
         return rectNotificationMapper.selectRectNotificationList(query);
@@ -57,6 +61,9 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
 
     @Override
     public int getUnreadCount() {
+        if (SecurityUtils.isAdmin()) {
+            return 0;
+        }
         return rectNotificationMapper.selectUnreadCount(SecurityUtils.getUserId());
     }
 
@@ -74,7 +81,7 @@ public class RectNotificationServiceImpl implements IRectNotificationService {
     @Override
     @Transactional
     public int notifyUser(Long userId, Long taskId, Long issueId, String title, String content) {
-        if (userId == null) {
+        if (userId == null || SecurityUtils.isAdmin(userId)) {
             return 0;
         }
         RectNotification notification = new RectNotification();

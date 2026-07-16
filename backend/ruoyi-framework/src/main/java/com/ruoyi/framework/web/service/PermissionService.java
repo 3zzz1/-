@@ -35,6 +35,10 @@ public class PermissionService
         {
             return false;
         }
+        if (isSystemAdminBusinessPermission(permission))
+        {
+            return false;
+        }
         PermissionContextHolder.setContext(permission);
         return hasPermissions(loginUser.getPermissions(), permission);
     }
@@ -71,7 +75,8 @@ public class PermissionService
         Set<String> authorities = loginUser.getPermissions();
         for (String permission : permissions.split(Constants.PERMISSION_DELIMITER))
         {
-            if (permission != null && hasPermissions(authorities, permission))
+            if (permission != null && !isSystemAdminBusinessPermission(permission)
+                    && hasPermissions(authorities, permission))
             {
                 return true;
             }
@@ -143,6 +148,43 @@ public class PermissionService
             }
         }
         return false;
+    }
+
+    /**
+     * 精确验证角色，不让超级管理员自动匹配其他业务角色。
+     */
+    public boolean hasExactRole(String role)
+    {
+        if (StringUtils.isEmpty(role))
+        {
+            return false;
+        }
+        return SecurityUtils.hasExactRole(role);
+    }
+
+    /**
+     * 精确验证是否拥有任意一个指定角色。
+     */
+    public boolean hasAnyExactRoles(String roles)
+    {
+        if (StringUtils.isEmpty(roles))
+        {
+            return false;
+        }
+        for (String role : roles.split(Constants.ROLE_DELIMITER))
+        {
+            if (SecurityUtils.hasExactRole(role))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isSystemAdminBusinessPermission(String permission)
+    {
+        return SecurityUtils.hasExactRole(Constants.SUPER_ADMIN)
+                && StringUtils.startsWith(StringUtils.trim(permission), "rectification:");
     }
 
     /**

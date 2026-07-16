@@ -142,6 +142,8 @@ public class SysMenuServiceImpl implements ISysMenuService
         if (SecurityUtils.isAdmin(userId))
         {
             menus = menuMapper.selectMenuTreeAll();
+            // 系统管理员负责平台配置，不进入审计整改业务工作台。
+            menus.removeIf(menu -> StringUtils.equals("rectification", menu.getPath()));
         }
         else
         {

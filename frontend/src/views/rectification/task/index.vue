@@ -100,7 +100,7 @@
             type="primary"
             icon="Check"
             @click="handleConfirm(scope.row)"
-            v-if="scope.row.status === '0' && !isAdmin"
+            v-if="scope.row.status === '0' && isLiaison"
           >确认接收</el-button>
           <el-button
             link
@@ -131,7 +131,7 @@
         </div>
         <div class="task-card-actions">
           <el-button type="primary" plain icon="View" @click="handleDetail(item)" v-hasPermi="['rectification:task:query']">详情</el-button>
-          <el-button v-if="item.status === '0' && !isAdmin" type="success" plain icon="Check" @click="handleConfirm(item)">接收</el-button>
+          <el-button v-if="item.status === '0' && isLiaison" type="success" plain icon="Check" @click="handleConfirm(item)">接收</el-button>
           <el-button type="warning" plain icon="Document" @click="handleGenerateNotice(item)" v-hasPermi="['rectification:task:notice']">通知书</el-button>
         </div>
       </section>
@@ -243,7 +243,7 @@
             <el-row>
               <el-col :span="12">
                 <el-form-item label="整改单位" prop="rectDeptId">
-                  <el-select v-model="dispatchForm.rectDeptId" placeholder="请选择整改单位" style="width: 100%">
+                  <el-select v-model="dispatchForm.rectDeptId" placeholder="请选择整改单位" style="width: 100%" @change="handleRectDeptChange">
                     <el-option v-for="d in deptList" :key="d.deptId" :label="d.deptName" :value="d.deptId" />
                   </el-select>
                 </el-form-item>
@@ -302,7 +302,7 @@ import { saveAs } from 'file-saver'
 
 import useUserStore from '@/store/modules/user'
 const router = useRouter()
-const isAdmin = computed(() => useUserStore().roles.includes('admin'))
+const isLiaison = computed(() => useUserStore().roles.includes('audited_unit_liaison'))
 const { proxy } = getCurrentInstance()
 
 const taskList = ref([])
@@ -326,9 +326,16 @@ function onContactChange(val) {
 
 function loadContactUsers() {
   if (!dispatchForm.rectDeptId) return
-  request({ url: '/system/user/list', method: 'get', params: { deptId: dispatchForm.rectDeptId, pageSize: 100 } })
-    .then(res => { contactUserList.value = res.rows || [] })
+  request({ url: '/rectification/task/liaisons', method: 'get', params: { deptId: dispatchForm.rectDeptId } })
+    .then(res => { contactUserList.value = res.data || [] })
     .catch(() => { contactUserList.value = [] })
+}
+
+function handleRectDeptChange() {
+  dispatchForm.contactPerson = undefined
+  dispatchForm.contactPhone = undefined
+  contactUserList.value = []
+  loadContactUsers()
 }
 request({ url: '/rectification/issue/depts', method: 'get' }).then(res => {
   const arr = Array.isArray(res.data) ? res.data : []

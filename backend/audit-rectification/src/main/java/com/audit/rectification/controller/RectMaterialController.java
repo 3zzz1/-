@@ -47,16 +47,17 @@ public class RectMaterialController extends BaseController {
     /**
      * 查询整改材料列表
      */
-    @PreAuthorize("@ss.hasAnyPermi('rectification:material:list,rectification:material:download,rectification:closure:audit,rectification:report:approve') or @ss.hasAnyRoles('audited_unit_leader,audit_lead,audit_director,rect_responsible')")
+    @PreAuthorize("@ss.hasAnyPermi('rectification:material:list,rectification:material:download,rectification:closure:audit,rectification:report:approve') or @ss.hasAnyExactRoles('audited_unit_leader,audit_lead,audit_director,rect_responsible')")
     @GetMapping("/list/{issueId}")
     public TableDataInfo list(@PathVariable Long issueId) {
         startPage();
         List<RectMaterial> list = rectMaterialService.selectRectMaterialByIssueId(issueId);
         // 角色过滤：整改责任人/被审单位负责人只看自己的，处长/组长看全部
         boolean isAdmin = com.ruoyi.common.utils.SecurityUtils.isAdmin();
-        boolean isLead = com.ruoyi.common.utils.SecurityUtils.hasPermi("rectification:closure:audit");
-        boolean isUnitLeader = com.ruoyi.common.utils.SecurityUtils.hasRole("audited_unit_leader");
-        if (!isAdmin && !isLead && !isUnitLeader) {
+        boolean isAuditViewer = com.ruoyi.common.utils.SecurityUtils.hasPermi("rectification:closure:audit")
+                || com.ruoyi.common.utils.SecurityUtils.hasExactRole("audit_staff");
+        boolean isUnitLeader = com.ruoyi.common.utils.SecurityUtils.hasExactRole("audited_unit_leader");
+        if (!isAdmin && !isAuditViewer && !isUnitLeader) {
             String username = getUsername();
             list.removeIf(m -> !username.equals(m.getCreateBy()));
         }
@@ -66,7 +67,7 @@ public class RectMaterialController extends BaseController {
     /**
      * 上传整改材料
      */
-    @PreAuthorize("@ss.hasPermi('rectification:material:upload')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:material:upload')")
     @PostMapping("/upload")
     public AjaxResult upload(@RequestParam("file") MultipartFile file, RectMaterial material) {
         try {
@@ -91,7 +92,7 @@ public class RectMaterialController extends BaseController {
     /**
      * 删除整改材料
      */
-    @PreAuthorize("@ss.hasPermi('rectification:material:remove')")
+    @PreAuthorize("@ss.hasExactRole('rect_responsible') and @ss.hasPermi('rectification:material:remove')")
     @DeleteMapping("/{materialIds}")
     public AjaxResult remove(@PathVariable Long[] materialIds) {
         return toAjax(rectMaterialService.deleteRectMaterialByIds(materialIds));
@@ -103,7 +104,7 @@ public class RectMaterialController extends BaseController {
     @org.springframework.web.bind.annotation.RequestMapping(
         value = "/download/{materialId}",
         method = {org.springframework.web.bind.annotation.RequestMethod.GET, org.springframework.web.bind.annotation.RequestMethod.POST})
-    @PreAuthorize("@ss.hasAnyPermi('rectification:material:download,rectification:material:list,rectification:closure:audit,rectification:report:approve') or @ss.hasAnyRoles('audited_unit_leader,audit_lead,audit_director,rect_responsible')")
+    @PreAuthorize("@ss.hasAnyPermi('rectification:material:download,rectification:material:list,rectification:closure:audit,rectification:report:approve') or @ss.hasAnyExactRoles('audited_unit_leader,audit_lead,audit_director,rect_responsible')")
     public void download(@PathVariable Long materialId, HttpServletResponse response) throws Exception {
         RectMaterial m = rectMaterialMapper.selectRectMaterialById(materialId);
         if (m == null) throw new RuntimeException("Attachment record not found");

@@ -1,6 +1,6 @@
 <template>
    <div class="app-container">
-      <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
+      <el-form class="desktop-query-form" :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
          <el-form-item label="参数名称" prop="configName">
             <el-input
                v-model="queryParams.configName"
@@ -44,6 +44,27 @@
             <el-button icon="Refresh" @click="resetQuery">重置</el-button>
          </el-form-item>
       </el-form>
+      <MobileFilterBar
+         v-model="queryParams.configName"
+         placeholder="搜索参数名称"
+         :active-count="mobileFilterCount"
+         @search="handleQuery"
+         @reset="resetQuery"
+      >
+         <el-form label-position="top">
+            <el-form-item label="参数键名">
+               <el-input v-model="queryParams.configKey" placeholder="请输入参数键名" clearable />
+            </el-form-item>
+            <el-form-item label="系统内置">
+               <el-select v-model="queryParams.configType" placeholder="全部类型" clearable>
+                  <el-option v-for="dict in sys_yes_no" :key="dict.value" :label="dict.label" :value="dict.value" />
+               </el-select>
+            </el-form-item>
+            <el-form-item label="创建时间">
+               <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期" />
+            </el-form-item>
+         </el-form>
+      </MobileFilterBar>
 
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
@@ -120,6 +141,27 @@
             </template>
          </el-table-column>
       </el-table>
+      <div v-loading="loading" class="system-mobile-list">
+         <el-empty v-if="!loading && configList.length === 0" description="暂无参数数据" />
+         <section v-for="item in configList" :key="item.configId" class="system-mobile-card">
+            <div class="system-card-head">
+               <div>
+                  <strong>{{ item.configName || '-' }}</strong>
+                  <span>{{ item.configKey || '-' }}</span>
+               </div>
+               <dict-tag :options="sys_yes_no" :value="item.configType" />
+            </div>
+            <div class="system-card-grid">
+               <span><em>参数值</em><b>{{ item.configValue || '-' }}</b></span>
+               <span><em>备注</em><b>{{ item.remark || '-' }}</b></span>
+               <span><em>创建时间</em><b>{{ parseTime(item.createTime) || '-' }}</b></span>
+            </div>
+            <div class="system-card-actions">
+               <el-button link type="primary" icon="Edit" @click="handleUpdate(item)" v-hasPermi="['system:config:edit']">修改</el-button>
+               <el-button link type="danger" icon="Delete" @click="handleDelete(item)" v-hasPermi="['system:config:remove']">删除</el-button>
+            </div>
+         </section>
+      </div>
 
       <pagination
          v-show="total > 0"
@@ -166,6 +208,7 @@
 
 <script setup name="Config">
 import { listConfig, getConfig, delConfig, addConfig, updateConfig, refreshCache } from "@/api/system/config";
+import MobileFilterBar from "@/components/MobileFilterBar/index.vue";
 
 const { proxy } = getCurrentInstance();
 const { sys_yes_no } = proxy.useDict("sys_yes_no");
@@ -198,6 +241,7 @@ const data = reactive({
 });
 
 const { queryParams, form, rules } = toRefs(data);
+const mobileFilterCount = computed(() => [queryParams.value.configKey, queryParams.value.configType, dateRange.value.length].filter(Boolean).length);
 
 /** 查询参数列表 */
 function getList() {
@@ -303,3 +347,134 @@ function handleRefreshCache() {
 
 getList();
 </script>
+
+<style scoped>
+.system-mobile-list {
+   display: none;
+}
+
+@media (max-width: 768px) {
+   .app-container {
+      padding: 12px;
+   }
+
+   .desktop-query-form {
+      display: none !important;
+   }
+
+   .mb8 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 0 12px;
+   }
+
+   .mb8 > .el-col {
+      width: auto !important;
+      max-width: none;
+      padding: 0 !important;
+   }
+
+   .mb8 > .el-col .el-button {
+      width: 100%;
+      min-height: 38px;
+      margin: 0;
+      padding: 8px 4px;
+   }
+
+   .mb8 > :deep(.right-toolbar) {
+      display: none;
+   }
+
+   :deep(.el-table) {
+      display: none;
+   }
+
+   .system-mobile-list {
+      display: block;
+   }
+
+   .system-mobile-card {
+      margin-bottom: 10px;
+      padding: 14px;
+      border: 1px solid #e6edf5;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 4px 14px rgba(43, 61, 86, .05);
+   }
+
+   .system-card-head,
+   .system-card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+   }
+
+   .system-card-head strong,
+   .system-card-head span {
+      display: block;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+   }
+
+   .system-card-head strong {
+      color: #20324d;
+      font-size: 15px;
+   }
+
+   .system-card-head span {
+      margin-top: 4px;
+      color: #8290a3;
+      font-size: 12px;
+   }
+
+   .system-card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+   }
+
+   .system-card-grid span,
+   .system-card-grid em,
+   .system-card-grid b {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+   }
+
+   .system-card-grid em,
+   .system-card-grid b {
+      display: block;
+   }
+
+   .system-card-grid em {
+      margin-bottom: 3px;
+      color: #8b98aa;
+      font-size: 11px;
+      font-style: normal;
+   }
+
+   .system-card-grid b {
+      color: #3d506a;
+      font-size: 13px;
+      font-weight: 500;
+   }
+
+   .system-card-actions {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid #edf1f6;
+   }
+
+   .system-card-actions .el-button {
+      margin: 0;
+      padding: 4px 6px;
+   }
+}
+</style>

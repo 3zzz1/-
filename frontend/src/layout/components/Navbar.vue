@@ -174,7 +174,6 @@ function logout() {
 function loadUnreadCount(showTip = false) {
   getUnreadCount().then(res => {
     const nextCount = Number(res.data || 0)
-    const previousCount = unreadCount.value
     unreadCount.value = nextCount
 
     if (!initializedNotice) {
@@ -185,9 +184,8 @@ function loadUnreadCount(showTip = false) {
       return
     }
 
-    if (nextCount > previousCount) {
-      loadNoticeList(true)
-    }
+    // 新消息的桌面提醒由 refreshNoticeState 按通知 ID 统一触发，
+    // 避免同一条消息因“未读数增加”和“最新通知变化”重复弹出。
   }).catch(() => {})
 }
 

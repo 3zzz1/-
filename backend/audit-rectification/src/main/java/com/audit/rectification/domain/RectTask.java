@@ -26,6 +26,9 @@ public class RectTask extends BaseEntity {
     /** 整改部门ID */
     private Long rectDeptId;
 
+    /** 整改部门名称 */
+    private String rectDeptName;
+
     /** 联系人 */
     private String contactPerson;
 
@@ -89,6 +92,14 @@ public class RectTask extends BaseEntity {
 
     public void setRectDeptId(Long rectDeptId) {
         this.rectDeptId = rectDeptId;
+    }
+
+    public String getRectDeptName() {
+        return rectDeptName;
+    }
+
+    public void setRectDeptName(String rectDeptName) {
+        this.rectDeptName = rectDeptName;
     }
 
     public String getContactPerson() {
@@ -178,6 +189,7 @@ public class RectTask extends BaseEntity {
                 ", taskNo='" + taskNo + '\'' +
                 ", issueIds='" + issueIds + '\'' +
                 ", rectDeptId=" + rectDeptId +
+                ", rectDeptName='" + rectDeptName + '\'' +
                 ", contactPerson='" + contactPerson + '\'' +
                 ", contactPhone='" + contactPhone + '\'' +
                 ", taskRequirement='" + taskRequirement + '\'' +

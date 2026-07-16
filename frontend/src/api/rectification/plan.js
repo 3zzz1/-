@@ -5,6 +5,11 @@ export function getPlan(taskId) {
   return request({ url: '/rectification/plan/' + taskId, method: 'get' })
 }
 
+// 查询整改方案中的责任人姓名
+export function getPlanUserName(userId) {
+  return request({ url: '/rectification/plan/user-name/' + userId, method: 'get' })
+}
+
 // 提交整改方案
 export function addPlan(data) {
   return request({ url: '/rectification/plan', method: 'post', data: data })

@@ -580,7 +580,7 @@ import { listTask, listMyTask, confirmTask, getTask, generateNotice } from '@/ap
 import { listIssue } from '@/api/rectification/issue'
 import { applyClosure } from '@/api/rectification/closure'
 import { listClosure } from '@/api/rectification/closure'
-import { applyExtension, getLatestPlanChange, listPendingPlanChanges } from '@/api/rectification/plan'
+import { applyExtension, getLatestPlanChange, getPlanUserName, listPendingPlanChanges } from '@/api/rectification/plan'
 import { downloadReportWord } from '@/api/rectification/report'
 import { downloadMaterial } from '@/api/rectification/material'
 import request from '@/utils/request'
@@ -606,7 +606,7 @@ const isLiaison = computed(() => (userStore.roles || []).includes('audited_unit_
 const isResponsible = computed(() => (userStore.roles || []).includes('rect_responsible'))
 const isAuditManager = computed(() => {
   const roles = userStore.roles || []
-  return roles.includes('admin') || roles.includes('audit_director') || roles.includes('audit_lead')
+  return roles.includes('audit_director') || roles.includes('audit_lead')
 })
 
 const taskList = ref([])
@@ -857,16 +857,18 @@ function getList() {
       t.closureAuditor = ''
       t.reRectRequired = ''
       t.planChangeStatus = ''
-      const reportReq = request({ url: '/rectification/report/' + t.taskId, method: 'get' }).then(r => {
-        const rpt = r.data || {}
-        t.approStatus = rpt.unitApproveStatus || null
-        t.reportStatus = rpt.status || null
-        t.reportId = rpt.reportId || null
-        t.reportApproveTime = rpt.unitApproveTime || null
-        t.reportSubmitTime = rpt.submitTime || null
-        t.reportUpdateTime = rpt.updateTime || null
-        t.reportChecked = true
-      }).catch(() => {})
+      const reportReq = isLiaison.value
+        ? Promise.resolve()
+        : request({ url: '/rectification/report/' + t.taskId, method: 'get' }).then(r => {
+          const rpt = r.data || {}
+          t.approStatus = rpt.unitApproveStatus || null
+          t.reportStatus = rpt.status || null
+          t.reportId = rpt.reportId || null
+          t.reportApproveTime = rpt.unitApproveTime || null
+          t.reportSubmitTime = rpt.submitTime || null
+          t.reportUpdateTime = rpt.updateTime || null
+          t.reportChecked = true
+        }).catch(() => {})
       const closureReq = request({ url: '/rectification/closure/task/' + t.taskId + '/latest', method: 'get' }).then(r => {
         const closure = r.data || {}
         t.closureStatus = closure.status || null
@@ -877,11 +879,13 @@ function getList() {
         t.closureAuditor = closure.updateBy || closure.auditBy || ''
         t.reRectRequired = closure.reRectRequired || ''
       }).catch(() => {})
-      const changeReq = getLatestPlanChange(t.taskId).then(r => {
-        const change = r.data || {}
-        t.planChangeStatus = change.status || ''
-        t.planChangeTime = change.updateTime || change.applyTime || change.createTime || null
-      }).catch(() => {})
+      const changeReq = isLiaison.value
+        ? Promise.resolve()
+        : getLatestPlanChange(t.taskId).then(r => {
+          const change = r.data || {}
+          t.planChangeStatus = change.status || ''
+          t.planChangeTime = change.updateTime || change.applyTime || change.createTime || null
+        }).catch(() => {})
       return Promise.all([reportReq, closureReq, changeReq])
     })).then(() => {
       taskList.value = [...tasks].sort((left, right) => taskBusinessTime(right) - taskBusinessTime(left))
@@ -1049,9 +1053,8 @@ function handleApplyClosure(row) {
   planReq.then(planRes => {
     const plan = planRes.data || {}
     if (plan.responsibleUserId) {
-      request({ url: '/system/user/list', method: 'get', params: { userId: plan.responsibleUserId } }).then(userRes => {
-        const user = (userRes.rows || [])[0]
-        closureResponsibleName.value = user ? (user.nickName || user.userName || '') : ''
+      getPlanUserName(plan.responsibleUserId).then(userRes => {
+        closureResponsibleName.value = (userRes.data || {}).displayName || ''
       }).catch(() => {})
     }
     closureResponsibleName.value = closureResponsibleName.value || plan.responsiblePerson || plan.rectifyPerson || ''

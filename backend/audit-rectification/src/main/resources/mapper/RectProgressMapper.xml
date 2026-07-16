@@ -15,25 +15,28 @@
     </resultMap>
 
     <sql id="selectRectProgressVo">
-        select progress_id, task_id, issue_id, progress_type, content,
-        operator_id, operator_name, operate_time, create_time
-        from rect_progress
+        select p.progress_id, p.task_id, p.issue_id, p.progress_type, p.content,
+        p.operator_id,
+        coalesce(nullif(u.nick_name, ''), p.operator_name) as operator_name,
+        p.operate_time, p.create_time
+        from rect_progress p
+        left join sys_user u on u.user_id = p.operator_id
     </sql>
 
     <select id="selectRectProgressList" parameterType="com.audit.rectification.domain.RectProgress" resultMap="RectProgressResult">
         <include refid="selectRectProgressVo"/>
         <where>
-            <if test="taskId != null">and task_id = #{taskId}</if>
-            <if test="issueId != null">and issue_id = #{issueId}</if>
-            <if test="progressType != null and progressType != ''">and progress_type = #{progressType}</if>
+            <if test="taskId != null">and p.task_id = #{taskId}</if>
+            <if test="issueId != null">and p.issue_id = #{issueId}</if>
+            <if test="progressType != null and progressType != ''">and p.progress_type = #{progressType}</if>
         </where>
-        order by operate_time desc
+        order by p.operate_time desc
     </select>
 
     <select id="selectRectProgressByTaskId" parameterType="Long" resultMap="RectProgressResult">
         <include refid="selectRectProgressVo"/>
-        where task_id = #{taskId}
-        order by operate_time desc
+        where p.task_id = #{taskId}
+        order by p.operate_time desc
     </select>
 
     <insert id="insertRectProgress" parameterType="com.audit.rectification.domain.RectProgress" useGeneratedKeys="true" keyProperty="progressId">
@@ -43,7 +46,7 @@
             <if test="progressType != null and progressType != ''">progress_type,</if>
             <if test="content != null and content != ''">content,</if>
             <if test="operatorId != null">operator_id,</if>
-            <if test="operatorName != null and operatorName != ''">operator_name,</if>
+            <if test="operatorId != null or (operatorName != null and operatorName != '')">operator_name,</if>
             operate_time,
             create_time
         )values(
@@ -52,7 +55,14 @@
             <if test="progressType != null and progressType != ''">#{progressType},</if>
             <if test="content != null and content != ''">#{content},</if>
             <if test="operatorId != null">#{operatorId},</if>
-            <if test="operatorName != null and operatorName != ''">#{operatorName},</if>
+            <if test="operatorId != null or (operatorName != null and operatorName != '')">
+                <choose>
+                    <when test="operatorId != null">
+                        coalesce((select nullif(nick_name, '') from sys_user where user_id = #{operatorId}), #{operatorName}),
+                    </when>
+                    <otherwise>#{operatorName},</otherwise>
+                </choose>
+            </if>
             sysdate(),
             sysdate()
         )

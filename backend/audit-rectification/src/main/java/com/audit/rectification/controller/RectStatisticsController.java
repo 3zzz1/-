@@ -62,9 +62,9 @@ public class RectStatisticsController extends BaseController {
             .map(i -> i.getIssueAmount()).reduce(BigDecimal.ZERO, BigDecimal::add));
 
         Long deptId = SecurityUtils.getLoginUser().getDeptId();
-        boolean unitRole = SecurityUtils.hasRole("audited_unit_leader")
-                || SecurityUtils.hasRole("audited_unit_liaison")
-                || SecurityUtils.hasRole("rect_responsible");
+        boolean unitRole = SecurityUtils.hasExactRole("audited_unit_leader")
+                || SecurityUtils.hasExactRole("audited_unit_liaison")
+                || SecurityUtils.hasExactRole("rect_responsible");
         List<RectTask> tasks = getScopedTasks();
         result.put("tasks", tasks.size());
         result.put("myTasks", tasks.size());
@@ -81,7 +81,7 @@ public class RectStatisticsController extends BaseController {
         return success(result);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/overview")
     public AjaxResult overview(StatisticsQueryDTO query) {
         StatisticsResultVO vo = new StatisticsResultVO();
@@ -107,7 +107,7 @@ public class RectStatisticsController extends BaseController {
         return success(vo);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/by-category")
     public AjaxResult byCategory() {
         List<RectIssue> all = getScopedIssues();
@@ -127,7 +127,7 @@ public class RectStatisticsController extends BaseController {
         return success(list);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/by-status")
     public AjaxResult byStatus() {
         List<RectIssue> all = getScopedIssues();
@@ -147,7 +147,7 @@ public class RectStatisticsController extends BaseController {
         return success(list);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/overdue")
     public AjaxResult overdue() {
         List<RectIssue> all = getScopedIssues();
@@ -163,14 +163,14 @@ public class RectStatisticsController extends BaseController {
         return success(m);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/fund-recovery")
     public AjaxResult fundRecovery() {
         List<RectIssue> all = getScopedIssues();
         return success(buildRiskAreaList(all));
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasExactRole('audited_unit_leader')")
     @GetMapping("/recurring")
     public AjaxResult recurring() {
         List<RectIssue> all = getScopedIssues();
@@ -313,7 +313,7 @@ public class RectStatisticsController extends BaseController {
         if (isFullStatisticsRole()) {
             return rectIssueMapper.selectRectIssueList(new RectIssue());
         }
-        if (SecurityUtils.hasRole("audited_unit_leader") || SecurityUtils.hasRole("audited_unit_liaison")) {
+        if (SecurityUtils.hasExactRole("audited_unit_leader") || SecurityUtils.hasExactRole("audited_unit_liaison")) {
             RectIssue query = new RectIssue();
             query.setResponsibleDeptId(SecurityUtils.getLoginUser().getDeptId());
             return rectIssueMapper.selectRectIssueList(query);
@@ -329,10 +329,10 @@ public class RectStatisticsController extends BaseController {
             return rectTaskMapper.selectRectTaskList(new RectTask());
         }
         Long deptId = SecurityUtils.getLoginUser().getDeptId();
-        if (SecurityUtils.hasRole("audited_unit_leader") || SecurityUtils.hasRole("audited_unit_liaison")) {
+        if (SecurityUtils.hasExactRole("audited_unit_leader") || SecurityUtils.hasExactRole("audited_unit_liaison")) {
             return deptId == null ? new ArrayList<>() : rectTaskMapper.selectRectTaskListByDeptId(deptId);
         }
-        if (SecurityUtils.hasRole("rect_responsible")) {
+        if (SecurityUtils.hasExactRole("rect_responsible")) {
             return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());
         }
         return new ArrayList<>();
@@ -362,10 +362,10 @@ public class RectStatisticsController extends BaseController {
     }
 
     private boolean isFullStatisticsRole() {
-        return SecurityUtils.hasRole("admin")
-                || SecurityUtils.hasRole("audit_director")
-                || SecurityUtils.hasRole("audit_lead")
-                || SecurityUtils.hasRole("school_leader");
+        return SecurityUtils.hasExactRole("audit_director")
+                || SecurityUtils.hasExactRole("audit_lead")
+                || SecurityUtils.hasExactRole("audit_staff")
+                || SecurityUtils.hasExactRole("school_leader");
     }
 
     private String taskStatusLabel(String status) {

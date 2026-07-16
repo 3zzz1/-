@@ -7,6 +7,7 @@
         <result property="taskNo"          column="task_no"           />
         <result property="issueIds"        column="issue_ids"         />
         <result property="rectDeptId"      column="rect_dept_id"      />
+        <result property="rectDeptName"    column="rect_dept_name"    />
         <result property="contactPerson"   column="contact_person"    />
         <result property="contactPhone"    column="contact_phone"     />
         <result property="taskRequirement" column="task_requirement"  />
@@ -25,11 +26,12 @@
     </resultMap>
 
     <sql id="selectRectTaskVo">
-        select task_id, task_no, issue_ids, rect_dept_id, contact_person, contact_phone,
-        task_requirement, deadline, notice_file_path, status,
-        dispatch_user_id, dispatch_time, confirm_time, del_flag,
-        create_by, create_time, update_by, update_time, remark
-        from rect_task
+        select t.task_id, t.task_no, t.issue_ids, t.rect_dept_id,
+        (select d.dept_name from sys_dept d where d.dept_id = t.rect_dept_id and d.del_flag = '0') as rect_dept_name,
+        t.contact_person, t.contact_phone, t.task_requirement, t.deadline, t.notice_file_path, t.status,
+        t.dispatch_user_id, t.dispatch_time, t.confirm_time, t.del_flag,
+        t.create_by, t.create_time, t.update_by, t.update_time, t.remark
+        from rect_task t
     </sql>
 
     <select id="selectRectTaskList" parameterType="com.audit.rectification.domain.RectTask" resultMap="RectTaskResult">
@@ -59,6 +61,7 @@
     <select id="selectRectTaskListForUnitLeader" parameterType="Long" resultMap="RectTaskResult">
         select distinct
         t.task_id, t.task_no, t.issue_ids, t.rect_dept_id, t.contact_person, t.contact_phone,
+        (select d.dept_name from sys_dept d where d.dept_id = t.rect_dept_id and d.del_flag = '0') as rect_dept_name,
         t.task_requirement, t.deadline, t.notice_file_path, t.status,
         t.dispatch_user_id, t.dispatch_time, t.confirm_time, t.del_flag,
         t.create_by, t.create_time, t.update_by, t.update_time, t.remark
@@ -81,6 +84,7 @@
     <select id="selectRectTaskListByResponsibleUserId" parameterType="Long" resultMap="RectTaskResult">
         select distinct
         t.task_id, t.task_no, t.issue_ids, t.rect_dept_id, t.contact_person, t.contact_phone,
+        (select d.dept_name from sys_dept d where d.dept_id = t.rect_dept_id and d.del_flag = '0') as rect_dept_name,
         t.task_requirement, t.deadline, t.notice_file_path, t.status,
         t.dispatch_user_id, t.dispatch_time, t.confirm_time, t.del_flag,
         t.create_by, t.create_time, t.update_by, t.update_time, t.remark

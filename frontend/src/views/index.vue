@@ -104,7 +104,10 @@ const recentTasks = ref([])
 
 const roles = computed(() => userStore.roles || [])
 const homeType = computed(() => {
-  if (hasAnyRole(['admin', 'audit_director', 'audit_lead'])) return 'auditManager'
+  if (hasAnyRole(['admin'])) return 'systemAdmin'
+  if (hasAnyRole(['audit_director', 'audit_lead'])) return 'auditManager'
+  if (hasAnyRole(['audit_staff'])) return 'auditStaff'
+  if (hasAnyRole(['school_leader'])) return 'schoolLeader'
   if (hasAnyRole(['audited_unit_leader'])) return 'unitLeader'
   if (hasAnyRole(['audited_unit_liaison'])) return 'liaison'
   if (hasAnyRole(['rect_responsible'])) return 'rectifier'
@@ -116,11 +119,38 @@ const metrics = computed(() => currentHome.value.metrics())
 const currentTodos = computed(() => currentHome.value.todos())
 
 const homes = {
+  systemAdmin: {
+    title: '系统管理工作台',
+    desc: '维护系统用户、角色权限、组织机构和运行参数。',
+    workTitle: '系统管理入口',
+    workDesc: '处理系统配置、安全授权和运行维护事项。',
+    todoTitle: '管理入口',
+    todoDesc: '进入对应模块执行系统管理操作。',
+    primary: { text: '用户管理', path: '/system/user' },
+    secondary: { text: '角色管理', path: '/system/role' },
+    metrics: () => [
+      metric('users', '用户管理', '用户', 'User', '/system/user', 'blue'),
+      metric('roles', '角色权限', '角色', 'Lock', '/system/role', 'amber'),
+      metric('departments', '组织机构', '部门', 'OfficeBuilding', '/system/dept', 'green'),
+      metric('settings', '参数设置', '参数', 'Setting', '/system/config', 'violet')
+    ],
+    todos: () => [
+      { label: '用户与账号管理', value: '进入', path: '/system/user' },
+      { label: '角色与数据权限', value: '进入', path: '/system/role' },
+      { label: '系统运行日志', value: '进入', path: '/monitor/operlog' }
+    ],
+    actions: [
+      { title: '用户管理', desc: '维护账号、状态和所属部门。', icon: 'User', path: '/system/user', tone: 'blue' },
+      { title: '角色管理', desc: '配置角色菜单和数据权限。', icon: 'Lock', path: '/system/role', tone: 'amber' },
+      { title: '部门管理', desc: '维护学校组织机构信息。', icon: 'OfficeBuilding', path: '/system/dept', tone: 'green' },
+      { title: '参数设置', desc: '维护系统运行参数。', icon: 'Setting', path: '/system/config', tone: 'violet' }
+    ]
+  },
   auditManager: {
     title: '审计整改监督工作台',
     desc: '集中处理待下发问题、整改任务跟踪、销号审核和整改成效分析。',
     workTitle: '审计处待办入口',
-    workDesc: 'admin、审计处长、主审/组长在这里处理全校整改监督事项。',
+    workDesc: '审计处长和项目组长/主审在这里处理全校整改监督事项。',
     todoTitle: '审计待办',
     todoDesc: '优先处理需要审计处操作的事项。',
     primary: { text: '审计待办', path: '/rectification/my-tasks' },
@@ -141,6 +171,50 @@ const homes = {
       { title: '整改任务', desc: '查看任务下发、确认、分办和整改进度。', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
       { title: '销号审核', desc: '审核整改材料和销号申请。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
       { title: '整改分析', desc: '查看完成率、逾期率和风险分布。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' }
+    ]
+  },
+  auditStaff: {
+    title: '普通审计人员工作台',
+    desc: '查看审计问题、整改任务、佐证材料和整改结果。',
+    workTitle: '审计查询入口',
+    workDesc: '查询整改业务资料和进展，不提供下发、编辑及审批操作。',
+    todoTitle: '重点关注',
+    todoDesc: '查看整改进度和逾期情况。',
+    primary: { text: '问题台账', path: '/rectification/issue' },
+    secondary: { text: '整改分析', path: '/rectification/statistics' },
+    metrics: () => baseMetrics('/rectification/task'),
+    todos: () => [
+      { label: '整改中任务', value: overview.inProgress, path: '/rectification/task' },
+      { label: '已完成问题', value: overview.completed, path: '/rectification/closure' },
+      { label: '逾期问题', value: overview.overdue, path: '/rectification/statistics' }
+    ],
+    actions: [
+      { title: '问题台账', desc: '查看审计发现问题及当前整改状态。', icon: 'List', path: '/rectification/issue', tone: 'blue' },
+      { title: '整改任务', desc: '查看整改任务、责任分工和办理进度。', icon: 'EditPen', path: '/rectification/task', tone: 'amber' },
+      { title: '销号记录', desc: '查看销号申请及审计复核结果。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' },
+      { title: '整改分析', desc: '查看整改完成率、逾期率和风险分布。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' }
+    ]
+  },
+  schoolLeader: {
+    title: '全校整改监督工作台',
+    desc: '查看全校整改概况、风险分布、整改进展和最终整改结果。',
+    workTitle: '整改监督入口',
+    workDesc: '以汇总和只读方式掌握全校整改情况，不参与具体业务办理。',
+    todoTitle: '监督关注',
+    todoDesc: '重点关注整改进度、逾期问题和销号结果。',
+    primary: { text: '整改数据分析', path: '/rectification/statistics' },
+    secondary: { text: '整改任务进展', path: '/rectification/task' },
+    metrics: () => baseMetrics('/rectification/task'),
+    todos: () => [
+      { label: '整改中问题', value: overview.inProgress, path: '/rectification/task' },
+      { label: '已销号问题', value: overview.completed, path: '/rectification/closure' },
+      { label: '逾期问题', value: overview.overdue, path: '/rectification/statistics' }
+    ],
+    actions: [
+      { title: '整改总体情况', desc: '查看全校整改完成率、逾期率和成效汇总。', icon: 'DataAnalysis', path: '/rectification/statistics', tone: 'violet' },
+      { title: '整改任务进展', desc: '查看任务状态和全流程进展时间线。', icon: 'EditPen', path: '/rectification/task', tone: 'blue' },
+      { title: '逾期风险监督', desc: '关注逾期问题、高风险领域和重复问题。', icon: 'WarningFilled', path: '/rectification/statistics', tone: 'amber' },
+      { title: '销号结果', desc: '查看最终整改报告和销号复核结果。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' }
     ]
   },
   auditor: {
@@ -269,6 +343,7 @@ function normalizeOverview(data) {
 }
 
 function loadHomeData() {
+  if (homeType.value === 'systemAdmin') return
   getOverview().then(res => normalizeOverview(res.data || {})).catch(() => {})
 }
 

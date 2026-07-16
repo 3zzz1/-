@@ -10,6 +10,11 @@ export function getClosure(closureId) {
   return request({ url: '/rectification/closure/' + closureId, method: 'get' })
 }
 
+// Query the display name used in the closure workflow
+export function getClosureUserName(userId) {
+  return request({ url: '/rectification/closure/user-name/' + userId, method: 'get' })
+}
+
 // 申请销号
 export function applyClosure(data) {
   return request({ url: '/rectification/closure/apply', method: 'post', data: data })

@@ -226,6 +226,7 @@
         <h4>整改文件</h4>
         <div class="closure-detail-files">
           <el-button
+            v-if="!isSchoolLeader || viewData.status === '1'"
             type="primary"
             plain
             icon="Document"
@@ -233,6 +234,7 @@
             @click="downloadReport(viewData)"
           >整改报告</el-button>
           <el-button
+            v-if="!isSchoolLeader"
             v-for="file in viewData.attachments || []"
             :key="file.materialId || file.id"
             plain
@@ -283,7 +285,7 @@
 import { ref, reactive, toRefs, getCurrentInstance, computed } from 'vue'
 import { saveAs } from 'file-saver'
 import request from '@/utils/request'
-import { listClosure, getClosure } from '@/api/rectification/closure'
+import { listClosure, getClosure, getClosureUserName } from '@/api/rectification/closure'
 import { downloadReportWord } from '@/api/rectification/report'
 import { downloadMaterial } from '@/api/rectification/material'
 import ClosureApply from './components/ClosureApply.vue'
@@ -294,6 +296,7 @@ import useUserStore from '@/store/modules/user'
 const { proxy } = getCurrentInstance()
 const userStore = useUserStore()
 const canApplyClosure = computed(() => (userStore.roles || []).includes('rect_responsible'))
+const isSchoolLeader = computed(() => (userStore.roles || []).includes('school_leader'))
 
 const closureList = ref([])
 const loading = ref(true)
@@ -366,15 +369,13 @@ function getList() {
         item.issueTitle = (r.data || {}).issueTitle || ''
       }).catch(() => {}).finally(checkDone)
       if (item.auditUserId) {
-        request({ url: '/system/user/list', method: 'get', params: { userId: item.auditUserId } }).then(r => {
-          const u = ((r.rows || [])[0] || {})
-          item.auditor = u.nickName || u.userName || ''
+        getClosureUserName(item.auditUserId).then(r => {
+          item.auditor = (r.data || {}).displayName || ''
         }).catch(() => {}).finally(checkDone)
       } else { checkDone() }
       if (item.applyUserId) {
-        request({ url: '/system/user/list', method: 'get', params: { userId: item.applyUserId } }).then(r => {
-          const u = ((r.rows || [])[0] || {})
-          item.applicant = u.nickName || u.userName || item.applicant || ''
+        getClosureUserName(item.applyUserId).then(r => {
+          item.applicant = (r.data || {}).displayName || item.applicant || ''
         }).catch(() => {})
       }
     })
@@ -417,23 +418,25 @@ function handleView(row) {
         request({ url: '/rectification/issue/' + iid, method: 'get' }).then(r => {
           viewData.value.issueTitle = (r.data || {}).issueTitle || ''
         })
-        request({ url: '/rectification/material/list/' + iid, method: 'get' }).then(r => {
-          viewData.value.attachments = r.rows || []
-        }).catch(() => {
+        if (!isSchoolLeader.value) {
+          request({ url: '/rectification/material/list/' + iid, method: 'get' }).then(r => {
+            viewData.value.attachments = r.rows || []
+          }).catch(() => {
+            viewData.value.attachments = []
+          })
+        } else {
           viewData.value.attachments = []
-        })
+        }
       }
       // 加载审核人姓名
       if (viewData.value.auditUserId) {
-        request({ url: '/system/user/list', method: 'get', params: { userId: viewData.value.auditUserId } }).then(r => {
-          const u = ((r.rows || [])[0] || {})
-          viewData.value.auditor = u.nickName || u.userName || ''
+        getClosureUserName(viewData.value.auditUserId).then(r => {
+          viewData.value.auditor = (r.data || {}).displayName || ''
         })
       }
       if (viewData.value.applyUserId) {
-        request({ url: '/system/user/list', method: 'get', params: { userId: viewData.value.applyUserId } }).then(r => {
-          const u = ((r.rows || [])[0] || {})
-          viewData.value.applicant = u.nickName || u.userName || viewData.value.applicant || ''
+        getClosureUserName(viewData.value.applyUserId).then(r => {
+          viewData.value.applicant = (r.data || {}).displayName || viewData.value.applicant || ''
         })
       }
       viewOpen.value = true
@@ -525,9 +528,8 @@ function handleAudit(row) {
       }))
     }
     if (c.applyUserId) {
-      promises.push(request({ url: '/system/user/list', method: 'get', params: { userId: c.applyUserId } }).then(r => {
-        const u = ((r.rows || [])[0] || {})
-        c.applicant = u.nickName || u.userName || c.applicant || ''
+      promises.push(getClosureUserName(c.applyUserId).then(r => {
+        c.applicant = (r.data || {}).displayName || c.applicant || ''
       }))
     }
     Promise.all(promises).then(() => {

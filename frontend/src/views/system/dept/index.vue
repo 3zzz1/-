@@ -1,6 +1,6 @@
 <template>
    <div class="app-container">
-      <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
+      <el-form class="desktop-query-form" :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch">
          <el-form-item label="部门名称" prop="deptName">
             <el-input
                v-model="queryParams.deptName"
@@ -25,6 +25,21 @@
             <el-button icon="Refresh" @click="resetQuery">重置</el-button>
          </el-form-item>
       </el-form>
+      <MobileFilterBar
+         v-model="queryParams.deptName"
+         placeholder="搜索部门名称"
+         :active-count="queryParams.status ? 1 : 0"
+         @search="handleQuery"
+         @reset="resetQuery"
+      >
+         <el-form label-position="top">
+            <el-form-item label="部门状态">
+               <el-select v-model="queryParams.status" placeholder="全部状态" clearable>
+                  <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
+               </el-select>
+            </el-form-item>
+         </el-form>
+      </MobileFilterBar>
 
       <el-row :gutter="10" class="mb8">
          <el-col :span="1.5">
@@ -75,6 +90,28 @@
             </template>
          </el-table-column>
       </el-table>
+      <div v-loading="loading" class="system-mobile-list">
+         <el-empty v-if="!loading && mobileDeptList.length === 0" description="暂无部门数据" />
+         <section v-for="item in mobileDeptList" :key="item.deptId" class="system-mobile-card">
+            <div class="system-card-head">
+               <div>
+                  <strong>{{ item.deptName || '-' }}</strong>
+                  <span>{{ item.parentName || '顶级部门' }}</span>
+               </div>
+               <dict-tag :options="sys_normal_disable" :value="item.status" />
+            </div>
+            <div class="system-card-grid">
+               <span><em>负责人</em><b>{{ item.leader || '-' }}</b></span>
+               <span><em>联系电话</em><b>{{ item.phone || '-' }}</b></span>
+               <span><em>显示排序</em><b>{{ item.orderNum }}</b></span>
+            </div>
+            <div class="system-card-actions">
+               <el-button link type="primary" icon="Edit" @click="handleUpdate(item)" v-hasPermi="['system:dept:edit']">修改</el-button>
+               <el-button link type="primary" icon="Plus" @click="handleAdd(item)" v-hasPermi="['system:dept:add']">新增下级</el-button>
+               <el-button v-if="item.parentId != 0" link type="danger" icon="Delete" @click="handleDelete(item)" v-hasPermi="['system:dept:remove']">删除</el-button>
+            </div>
+         </section>
+      </div>
 
       <!-- 添加或修改部门对话框 -->
       <el-dialog :title="title" v-model="open" width="600px" append-to-body>
@@ -142,6 +179,7 @@
 
 <script setup name="Dept">
 import { listDept, getDept, delDept, addDept, updateDept, listDeptExcludeChild } from "@/api/system/dept";
+import MobileFilterBar from "@/components/MobileFilterBar/index.vue";
 
 const { proxy } = getCurrentInstance();
 const { sys_normal_disable } = proxy.useDict("sys_normal_disable");
@@ -154,6 +192,7 @@ const title = ref("");
 const deptOptions = ref([]);
 const isExpandAll = ref(true);
 const refreshTable = ref(true);
+const mobileDeptList = ref([]);
 
 const data = reactive({
   form: {},
@@ -177,8 +216,18 @@ function getList() {
   loading.value = true;
   listDept(queryParams.value).then(response => {
     deptList.value = proxy.handleTree(response.data, "deptId");
+    mobileDeptList.value = flattenDepartments(deptList.value);
     loading.value = false;
   });
+}
+
+function flattenDepartments(list, parentName = '') {
+  return (list || []).reduce((result, item) => {
+    const current = { ...item, parentName };
+    result.push(current);
+    if (item.children?.length) result.push(...flattenDepartments(item.children, item.deptName));
+    return result;
+  }, []);
 }
 /** 取消按钮 */
 function cancel() {
@@ -272,3 +321,134 @@ function handleDelete(row) {
 
 getList();
 </script>
+
+<style scoped>
+.system-mobile-list {
+   display: none;
+}
+
+@media (max-width: 768px) {
+   .app-container {
+      padding: 12px;
+   }
+
+   .desktop-query-form {
+      display: none !important;
+   }
+
+   .mb8 {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 0 12px;
+   }
+
+   .mb8 > .el-col {
+      width: auto !important;
+      max-width: none;
+      padding: 0 !important;
+   }
+
+   .mb8 > .el-col .el-button {
+      width: 100%;
+      min-height: 38px;
+      margin: 0;
+      padding: 8px 4px;
+   }
+
+   .mb8 > :deep(.right-toolbar) {
+      display: none;
+   }
+
+   :deep(.el-table) {
+      display: none;
+   }
+
+   .system-mobile-list {
+      display: block;
+   }
+
+   .system-mobile-card {
+      margin-bottom: 10px;
+      padding: 14px;
+      border: 1px solid #e6edf5;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 4px 14px rgba(43, 61, 86, .05);
+   }
+
+   .system-card-head,
+   .system-card-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+   }
+
+   .system-card-head strong,
+   .system-card-head span {
+      display: block;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+   }
+
+   .system-card-head strong {
+      color: #20324d;
+      font-size: 15px;
+   }
+
+   .system-card-head span {
+      margin-top: 4px;
+      color: #8290a3;
+      font-size: 12px;
+   }
+
+   .system-card-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 14px 0;
+   }
+
+   .system-card-grid span,
+   .system-card-grid em,
+   .system-card-grid b {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+   }
+
+   .system-card-grid em,
+   .system-card-grid b {
+      display: block;
+   }
+
+   .system-card-grid em {
+      margin-bottom: 3px;
+      color: #8b98aa;
+      font-size: 11px;
+      font-style: normal;
+   }
+
+   .system-card-grid b {
+      color: #3d506a;
+      font-size: 13px;
+      font-weight: 500;
+   }
+
+   .system-card-actions {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      padding-top: 10px;
+      border-top: 1px solid #edf1f6;
+   }
+
+   .system-card-actions .el-button {
+      margin: 0;
+      padding: 4px 6px;
+   }
+}
+</style>

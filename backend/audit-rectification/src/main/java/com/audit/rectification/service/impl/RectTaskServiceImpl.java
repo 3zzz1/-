@@ -284,16 +284,16 @@ public class RectTaskServiceImpl implements IRectTaskService {
 
     @Override
     public List<RectTask> selectMyTaskList() {
-        if (SecurityUtils.hasRole("admin") || SecurityUtils.hasRole("audit_director") || SecurityUtils.hasRole("audit_lead")) {
+        if (SecurityUtils.hasExactRole("audit_director") || SecurityUtils.hasExactRole("audit_lead")) {
             return rectTaskMapper.selectRectTaskList(new RectTask());
         }
-        if (SecurityUtils.hasRole("audited_unit_leader")) {
+        if (SecurityUtils.hasExactRole("audited_unit_leader")) {
             return rectTaskMapper.selectRectTaskListForUnitLeader(SecurityUtils.getLoginUser().getDeptId());
         }
-        if (SecurityUtils.hasRole("audited_unit_liaison")) {
+        if (SecurityUtils.hasExactRole("audited_unit_liaison")) {
             return rectTaskMapper.selectRectTaskListByDeptId(SecurityUtils.getLoginUser().getDeptId());
         }
-        if (SecurityUtils.hasRole("rect_responsible")) {
+        if (SecurityUtils.hasExactRole("rect_responsible")) {
             return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());
         }
         return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());

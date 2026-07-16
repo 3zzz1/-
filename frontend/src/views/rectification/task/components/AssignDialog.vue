@@ -1,17 +1,18 @@
 <template>
-  <el-dialog class="mobile-form-dialog assign-dialog" :title="'分办责任人 - ' + taskInfo.taskNo" v-model="visible" :width="dialogWidth" append-to-body :close-on-click-modal="false" @close="handleClose">
-    <el-alert title="请为每一项问题指派具体的整改责任人" type="info" :closable="false" show-icon class="mb15" />
+  <el-dialog class="mobile-form-dialog assign-dialog" :title="'分办整改执行人 - ' + taskInfo.taskNo" v-model="visible" :width="dialogWidth" append-to-body :close-on-click-modal="false" @close="handleClose">
+    <el-alert title="请为每一项问题指派具体的整改执行人" type="info" :closable="false" show-icon class="mb15" />
     <el-table v-if="!isMobile" :data="issues" stripe max-height="400">
       <el-table-column label="问题编号" prop="issueNo" width="150" />
       <el-table-column label="问题标题" prop="issueTitle" min-width="200" show-overflow-tooltip />
       <el-table-column label="问题分类" width="90">
         <template #default="s"><el-tag size="small">{{ catLabel(s.row.issueCategory) }}</el-tag></template>
       </el-table-column>
-      <el-table-column label="指派责任人" width="200">
+      <el-table-column label="整改执行人" width="200">
         <template #default="s">
-          <el-select v-model="s.row.assignTo" filterable :disabled="s.row.assigned" placeholder="选择责任人" size="small" style="width: 100%">
-            <el-option v-for="u in deptUsers" :key="u.userId" :label="u.nickName || u.userName" :value="u.userId" />
+          <el-select v-model="s.row.assignTo" filterable :disabled="s.row.assigned" placeholder="选择整改执行人" size="small" style="width: 100%">
+            <el-option v-for="u in deptUsers" :key="u.userId" :label="responsibleLabel(u)" :value="u.userId" />
           </el-select>
+          <div v-if="s.row.assignment" class="assign-record">{{ assignmentLabel(s.row.assignment) }}</div>
         </template>
       </el-table-column>
     </el-table>
@@ -23,17 +24,18 @@
         </div>
         <div class="assign-issue-title">{{ item.issueTitle || '未命名问题' }}</div>
         <div class="assign-card-field">
-          <div class="assign-card-label">整改责任人</div>
+          <div class="assign-card-label">整改执行人</div>
           <el-select
             v-model="item.assignTo"
             filterable
             :disabled="item.assigned"
-            placeholder="选择责任人"
+            placeholder="选择整改执行人"
             size="large"
             style="width: 100%"
           >
-            <el-option v-for="u in deptUsers" :key="u.userId" :label="u.nickName || u.userName" :value="u.userId" />
+            <el-option v-for="u in deptUsers" :key="u.userId" :label="responsibleLabel(u)" :value="u.userId" />
           </el-select>
+          <div v-if="item.assignment" class="assign-record">{{ assignmentLabel(item.assignment) }}</div>
         </div>
       </div>
       <el-empty v-if="!issues.length" description="暂无待分办问题" />
@@ -68,6 +70,13 @@ const taskInfo = reactive({ taskNo: '' })
 const issues = ref([])
 const cats = { FUND: '资金类', ASSET: '资产类', PURCHASE: '采购类', HR: '人事类', CONSTRUCTION: '基建类', OTHER: '其他' }
 function catLabel(v) { return cats[v] || v }
+function responsibleLabel(user) {
+  return [user.nickName || user.userName, user.remark].filter(Boolean).join(' · ')
+}
+function assignmentLabel(assignment) {
+  const person = [assignment.responsibleName, assignment.responsibilityCategory].filter(Boolean).join(' · ')
+  return ['已分办', person || assignment.responsibleUserId, assignment.assignTime].filter(Boolean).join(' · ')
+}
 
 watch(() => props.modelValue, val => { if (val) loadData() })
 
@@ -77,38 +86,47 @@ function loadData() {
     taskInfo.taskNo = t.taskNo || ''
     // 加载部门用户
     if (t.rectDeptId) {
-      request({ url: '/system/user/list', method: 'get', params: { deptId: t.rectDeptId, pageSize: 100 } })
-        .then(r => { deptUsers.value = r.rows || [] })
+      request({ url: '/rectification/task/executors', method: 'get', params: { deptId: t.rectDeptId } })
+        .then(r => { deptUsers.value = r.data || [] })
+        .catch(() => { deptUsers.value = [] })
     }
-    // 加载关联问题
+    // 从数据库加载已分办记录，重新打开时回显执行人。
     const ids = JSON.parse((t.issueIds || '[]').replace(/'/g, '"'))
-    const saved = JSON.parse(localStorage.getItem('assign_' + props.taskId) || '{}')
+    localStorage.removeItem('assign_' + props.taskId)
     issues.value = []
-    ids.forEach(id => {
-      getIssue(id).then(r => {
-        const iss = r.data || {}
-        if (iss) {
-          iss.assignTo = saved[id] || undefined
-          iss.assigned = false
-          issues.value.push(iss)
-        }
+    request({ url: '/rectification/task/assignments/' + props.taskId, method: 'get' })
+      .then(assignRes => {
+        const assignedMap = new Map((assignRes.data || []).map(item => [String(item.issueId), item]))
+        return Promise.all(ids.map(id => getIssue(id).then(r => {
+          const iss = r.data || {}
+          if (iss) {
+            const assignment = assignedMap.get(String(id))
+            iss.assignTo = assignment?.responsibleUserId
+            iss.assigned = !!assignment
+            iss.assignment = assignment
+          }
+          return iss
+        })))
       })
-    })
+      .then(list => { issues.value = list.filter(Boolean) })
+      .catch(() => { issues.value = [] })
   })
 }
 
 function handleSubmit() {
   const unassigned = issues.value.filter(i => !i.assignTo)
-  if (unassigned.length > 0) { proxy.$modal.msgWarning('请为所有问题指派责任人'); return }
+  if (unassigned.length > 0) { proxy.$modal.msgWarning('请为所有问题指派整改执行人'); return }
   submitting.value = true
   const today = new Date().toISOString().slice(0, 10)
-  const plans = issues.value.map(i => ({
+  const plans = issues.value.filter(i => !i.assigned).map(i => ({
     taskId: props.taskId, issueId: i.issueId, planContent: '待编制整改方案',
     responsibleUserId: i.assignTo, planDeadline: today, planType: '1'
   }))
-  const saved = {}
-  issues.value.forEach(i => { if (i.assignTo) saved[i.issueId] = i.assignTo })
-  localStorage.setItem('assign_' + props.taskId, JSON.stringify(saved))
+  if (plans.length === 0) {
+    proxy.$modal.msgInfo('当前问题均已完成分办')
+    submitting.value = false
+    return
+  }
   Promise.all(plans.map(p => addPlan(p)))
     .then(() => { proxy.$modal.msgSuccess('分办完成'); emit('success'); handleClose() })
     .catch(() => { proxy.$modal.msgError('分办失败') })
@@ -120,6 +138,12 @@ function handleClose() { issues.value = []; visible.value = false }
 
 <style scoped>
 .mb15 { margin-bottom: 15px; }
+.assign-record {
+  margin-top: 5px;
+  color: #7a899d;
+  font-size: 12px;
+  line-height: 1.4;
+}
 
 @media (max-width: 768px) {
   :deep(.el-dialog__body) {

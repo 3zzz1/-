@@ -129,7 +129,7 @@ public class RectClosureServiceImpl implements IRectClosureService {
         progress.setCreateTime(new Date());
         rectProgressMapper.insertRectProgress(progress);
 
-        rectNotificationService.notifyRoles(new String[] { "admin", "audit_director", "audit_lead" },
+        rectNotificationService.notifyRoles(new String[] { "audit_director", "audit_lead" },
                 null, taskId, issueId, "销号申请待审核",
                 "整改单位已提交销号申请，请及时审核。");
 

@@ -173,6 +173,16 @@ public class SecurityUtils
     }
 
     /**
+     * 精确判断当前用户是否拥有指定角色，不应用超级管理员角色通配规则。
+     */
+    public static boolean hasExactRole(String role)
+    {
+        List<SysRole> roleList = getLoginUser().getUser().getRoles();
+        return roleList.stream().map(SysRole::getRoleKey)
+                .anyMatch(roleKey -> StringUtils.equals(roleKey, StringUtils.trim(role)));
+    }
+
+    /**
      * 判断是否包含角色
      * 
      * @param roles 角色列表
