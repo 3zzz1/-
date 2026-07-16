@@ -16,7 +16,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { scrollTo } from '@/utils/scroll-to'
 
 const props = defineProps({
@@ -63,14 +63,33 @@ const props = defineProps({
 
 const emit = defineEmits();
 const isMobile = ref(window.innerWidth <= 768)
+const desktopPageSize = ref(props.limit)
 const resolvedLayout = computed(() => isMobile.value ? 'prev, pager, next' : props.layout)
 const resolvedPagerCount = computed(() => isMobile.value ? 5 : props.pagerCount)
 
 function handleViewportChange() {
-  isMobile.value = window.innerWidth <= 768
+  const nextMobile = window.innerWidth <= 768
+  if (nextMobile === isMobile.value) return
+  isMobile.value = nextMobile
+  syncResponsivePageSize()
 }
 
-onMounted(() => window.addEventListener('resize', handleViewportChange))
+function syncResponsivePageSize() {
+  const targetSize = isMobile.value ? 2 : desktopPageSize.value
+  if (props.limit === targetSize) return
+  emit('update:page', 1)
+  emit('update:limit', targetSize)
+  emit('pagination', { page: 1, limit: targetSize })
+}
+
+watch(() => props.limit, val => {
+  if (!isMobile.value && val) desktopPageSize.value = val
+})
+
+onMounted(() => {
+  window.addEventListener('resize', handleViewportChange)
+  syncResponsivePageSize()
+})
 onBeforeUnmount(() => window.removeEventListener('resize', handleViewportChange))
 
 const currentPage = computed({

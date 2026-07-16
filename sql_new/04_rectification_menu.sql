@@ -49,7 +49,8 @@ INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, query, r
 VALUES ('方案新增', @plan_menu_id, 1, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:add', '', 'admin', sysdate(), '', NULL, ''),
        ('方案编辑', @plan_menu_id, 2, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:edit', '', 'admin', sysdate(), '', NULL, ''),
        ('延期申请', @plan_menu_id, 3, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:extension', '', 'admin', sysdate(), '', NULL, ''),
-       ('长期整改', @plan_menu_id, 4, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:longTerm', '', 'admin', sysdate(), '', NULL, '');
+       ('长期整改', @plan_menu_id, 4, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:longTerm', '', 'admin', sysdate(), '', NULL, ''),
+       ('方案变更审批', @plan_menu_id, 5, '', NULL, NULL, NULL, 1, 0, 'F', '0', '0', 'rectification:plan:change:approve', '', 'admin', sysdate(), '', NULL, '');
 
 -- 子菜单：整改材料
 INSERT INTO sys_menu (menu_name, parent_id, order_num, path, component, query, route_name, is_frame, is_cache, menu_type, visible, status, perms, icon, create_by, create_time, update_by, update_time, remark)

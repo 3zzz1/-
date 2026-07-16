@@ -150,22 +150,29 @@ CREATE TABLE rect_report (
     KEY idx_task_id (task_id)
 ) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=utf8mb4 COMMENT='整改报告';
 
--- 7. 延期申请
+-- 7. 整改方案变更申请（延期/长期持续整改）
 DROP TABLE IF EXISTS rect_extension;
 CREATE TABLE rect_extension (
-    extension_id      BIGINT(20)    NOT NULL AUTO_INCREMENT COMMENT '延期申请ID',
+    extension_id      BIGINT(20)    NOT NULL AUTO_INCREMENT COMMENT '方案变更申请ID',
     issue_id          BIGINT(20)    NOT NULL COMMENT '关联问题ID',
     task_id           BIGINT(20)    NOT NULL COMMENT '关联任务ID',
-    original_deadline DATE          NOT NULL COMMENT '原截止日期',
-    extension_days    INT(11)       NOT NULL COMMENT '申请延期天数',
-    new_deadline      DATE          NOT NULL COMMENT '新截止日期',
-    reason            TEXT          NOT NULL COMMENT '延期原因',
-    status            CHAR(1)       DEFAULT '0' COMMENT '状态: 0=待审批 1=已通过 2=已驳回 3=转持续整改',
+    apply_type        CHAR(1)       NOT NULL DEFAULT '1' COMMENT '申请类型: 1=延期 2=长期持续整改',
+    original_deadline DATE          DEFAULT NULL COMMENT '原截止日期',
+    extension_days    INT(11)       DEFAULT NULL COMMENT '申请延期天数',
+    new_deadline      DATE          DEFAULT NULL COMMENT '新截止日期',
+    reason            TEXT          NOT NULL COMMENT '申请原因',
+    stage_goal        TEXT          COMMENT '阶段整改目标',
+    review_date       DATE          DEFAULT NULL COMMENT '下一次复核日期',
+    expected_finish_date DATE       DEFAULT NULL COMMENT '预计最终完成日期',
+    status            CHAR(1)       DEFAULT '0' COMMENT '状态: 0=单位审批中 1=审计处审批中 2=已通过 3=单位驳回 4=审计处驳回',
     apply_user_id     BIGINT(20)    DEFAULT NULL COMMENT '申请人ID',
     apply_time        DATETIME      DEFAULT NULL COMMENT '申请时间',
-    approve_user_id   BIGINT(20)    DEFAULT NULL COMMENT '审批人ID',
-    approve_time      DATETIME      DEFAULT NULL COMMENT '审批时间',
-    approve_opinion   VARCHAR(500)  DEFAULT '' COMMENT '审批意见',
+    approve_user_id   BIGINT(20)    DEFAULT NULL COMMENT '单位审批人ID',
+    approve_time      DATETIME      DEFAULT NULL COMMENT '单位审批时间',
+    approve_opinion   VARCHAR(500)  DEFAULT '' COMMENT '单位审批意见',
+    audit_approve_user_id BIGINT(20) DEFAULT NULL COMMENT '审计处审批人ID',
+    audit_approve_time DATETIME     DEFAULT NULL COMMENT '审计处审批时间',
+    audit_approve_opinion VARCHAR(500) DEFAULT '' COMMENT '审计处审批意见',
     del_flag          CHAR(1)       DEFAULT '0' COMMENT '删除标志(0=存在 2=删除)',
     create_by         VARCHAR(64)   DEFAULT '' COMMENT '创建者',
     create_time       DATETIME      COMMENT '创建时间',
@@ -175,7 +182,7 @@ CREATE TABLE rect_extension (
     PRIMARY KEY (extension_id),
     KEY idx_issue_id (issue_id),
     KEY idx_task_id (task_id)
-) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=utf8mb4 COMMENT='延期申请';
+) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=utf8mb4 COMMENT='整改方案变更申请';
 
 -- 8. 销号申请
 DROP TABLE IF EXISTS rect_closure;

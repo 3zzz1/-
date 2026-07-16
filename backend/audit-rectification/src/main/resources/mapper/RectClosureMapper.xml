@@ -9,6 +9,7 @@
         <result property="applyContent"    column="apply_content"     />
         <result property="status"          column="status"            />
         <result property="applyUserId"     column="apply_user_id"     />
+        <result property="applyUserName"   column="apply_user_name"   />
         <result property="applyTime"       column="apply_time"        />
         <result property="auditUserId"     column="audit_user_id"     />
         <result property="auditTime"       column="audit_time"        />
@@ -25,7 +26,7 @@
 
     <sql id="selectRectClosureVo">
         select closure_id, issue_id, task_id, apply_content, status,
-        apply_user_id, apply_time,
+        apply_user_id, (select nick_name from sys_user where user_id = apply_user_id) as apply_user_name, apply_time,
         audit_user_id, audit_time, audit_result, audit_opinion, re_rect_required,
         del_flag, create_by, create_time, update_by, update_time, remark
         from rect_closure
@@ -40,7 +41,7 @@
             <if test="auditResult != null and auditResult != ''">and audit_result = #{auditResult}</if>
             and del_flag = '0'
         </where>
-        order by create_time desc
+        order by coalesce(update_time, audit_time, apply_time, create_time) desc, closure_id desc
     </select>
 
     <select id="selectRectClosureById" parameterType="Long" resultMap="RectClosureResult">

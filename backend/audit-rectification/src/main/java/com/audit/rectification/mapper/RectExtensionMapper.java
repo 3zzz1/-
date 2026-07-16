@@ -27,6 +27,8 @@ public interface RectExtensionMapper {
      */
     public RectExtension selectRectExtensionById(Long extensionId);
 
+    public RectExtension selectLatestByTaskId(Long taskId);
+
     /**
      * 新增延期申请
      *

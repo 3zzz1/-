@@ -4,7 +4,7 @@
       <section class="audit-todo-header">
         <div>
           <h2>审计处待办</h2>
-          <p>聚合待下发、待审核、整改不到位、临期和逾期事项，点击后进入对应业务模块处理。</p>
+          <p>聚合待下发、待审核、临期和逾期事项，点击后进入对应业务模块处理。</p>
         </div>
         <el-button type="primary" icon="Refresh" :loading="loading" @click="getList">刷新待办</el-button>
       </section>
@@ -23,7 +23,7 @@
           <el-select v-model="queryParams.auditType" placeholder="全部类型" clearable style="width: 180px" @change="handleQuery">
             <el-option label="待下发问题" value="issue_pending" />
             <el-option label="待审销号" value="closure_pending" />
-            <el-option label="整改不到位" value="closure_rejected" />
+            <el-option label="方案变更审批" value="plan_change" />
             <el-option label="逾期未整改" value="task_overdue" />
             <el-option label="即将到期" value="task_soon" />
           </el-select>
@@ -55,7 +55,7 @@
             <el-select v-model="queryParams.auditType" placeholder="全部类型" clearable>
               <el-option label="待下发问题" value="issue_pending" />
               <el-option label="待审销号" value="closure_pending" />
-              <el-option label="整改不到位" value="closure_rejected" />
+              <el-option label="方案变更审批" value="plan_change" />
               <el-option label="逾期未整改" value="task_overdue" />
               <el-option label="即将到期" value="task_soon" />
             </el-select>
@@ -93,7 +93,7 @@
         </div>
         <template v-else>
         <el-empty v-if="auditTodoList.length === 0" description="暂无审计待办" />
-        <section v-for="item in auditTodoList" :key="item.key" class="audit-todo-card">
+        <section v-for="item in mobileAuditTodoList" :key="item.key" class="audit-todo-card">
           <div class="audit-todo-card-head">
             <el-tag :type="auditTodoTag(item.type)" size="small">{{ item.typeLabel }}</el-tag>
             <span :class="{ danger: item.type === 'task_overdue', warning: item.type === 'task_soon' }">{{ item.time || '-' }}</span>
@@ -106,6 +106,16 @@
           <p>{{ item.desc || '请进入对应业务模块处理。' }}</p>
           <el-button type="primary" plain icon="Position" @click="goAuditTodo(item)">去处理</el-button>
         </section>
+        <el-pagination
+          v-if="auditTodoList.length > 2"
+          v-model:current-page="auditMobilePage"
+          :page-size="2"
+          :total="auditTodoList.length"
+          layout="prev, pager, next"
+          small
+          background
+          class="mobile-card-pagination"
+        />
         </template>
       </div>
     </template>
@@ -306,14 +316,21 @@
             销号
           </el-button>
           <el-button
-            v-if="['1', '2', '3'].includes(scope.row.status)"
+            v-if="isUnitLeader && scope.row.planChangeStatus === '0'"
+            link
+            type="warning"
+            icon="Edit"
+            @click="handlePlanChange(scope.row)"
+          >方案变更审批</el-button>
+          <el-button
+            v-if="canApproveReport(scope.row)"
             v-hasPermi="['rectification:report:approve']"
             link
             type="warning"
             icon="Checked"
             @click="handleGoApproval(scope.row)"
           >
-            审批
+            报告审批
           </el-button>
         </template>
       </el-table-column>
@@ -420,13 +437,20 @@
             @click="handleApplyClosure(item)"
           >销号</el-button>
           <el-button
-            v-if="['1', '2', '3'].includes(item.status)"
+            v-if="isUnitLeader && item.planChangeStatus === '0'"
+            type="warning"
+            plain
+            icon="Edit"
+            @click="handlePlanChange(item)"
+          >方案变更审批</el-button>
+          <el-button
+            v-if="canApproveReport(item)"
             v-hasPermi="['rectification:report:approve']"
             type="warning"
             plain
             icon="Checked"
             @click="handleGoApproval(item)"
-          >审批</el-button>
+          >报告审批</el-button>
         </div>
       </section>
       </template>
@@ -550,13 +574,13 @@
 </template>
 
 <script setup name="MyTasks">
-import { ref, reactive, toRefs, computed, onMounted, getCurrentInstance, nextTick, watch } from 'vue'
+import { ref, reactive, toRefs, computed, onMounted, onActivated, getCurrentInstance, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { listTask, listMyTask, confirmTask, getTask, generateNotice } from '@/api/rectification/task'
 import { listIssue } from '@/api/rectification/issue'
 import { applyClosure } from '@/api/rectification/closure'
 import { listClosure } from '@/api/rectification/closure'
-import { applyExtension } from '@/api/rectification/plan'
+import { applyExtension, getLatestPlanChange, listPendingPlanChanges } from '@/api/rectification/plan'
 import { downloadReportWord } from '@/api/rectification/report'
 import { downloadMaterial } from '@/api/rectification/material'
 import request from '@/utils/request'
@@ -587,6 +611,8 @@ const isAuditManager = computed(() => {
 
 const taskList = ref([])
 const auditRawTodos = ref([])
+const auditMobilePage = ref(1)
+const hasActivatedOnce = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
 const ids = ref([])
@@ -677,12 +703,28 @@ const auditTodoList = computed(() => {
   })
 })
 
+const mobileAuditTodoList = computed(() => {
+  const start = (auditMobilePage.value - 1) * 2
+  return [...auditTodoList.value].sort((a, b) => timeValue(b.time) - timeValue(a.time)).slice(start, start + 2)
+})
+
+function timeValue(value) {
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isNaN(time) ? 0 : time
+}
+
+watch(auditTodoList, list => {
+  const maxPage = Math.max(1, Math.ceil(list.length / 2))
+  if (auditMobilePage.value > maxPage) auditMobilePage.value = maxPage
+})
+
 const auditStatCards = computed(() => {
   const list = auditRawTodos.value
   return [
     { type: undefined, label: '全部待办', count: list.length, tone: 'all' },
     { type: 'issue_pending', label: '待下发问题', count: countAuditTodo('issue_pending'), tone: 'blue' },
     { type: 'closure_pending', label: '待审销号', count: countAuditTodo('closure_pending'), tone: 'green' },
+    { type: 'plan_change', label: '方案变更审批', count: countAuditTodo('plan_change'), tone: 'blue' },
     { type: 'task_overdue', label: '逾期未整改', count: countAuditTodo('task_overdue'), tone: 'red' },
     { type: 'task_soon', label: '即将到期', count: countAuditTodo('task_soon'), tone: 'amber' }
   ]
@@ -696,7 +738,7 @@ function auditTodoTag(type) {
   const map = {
     issue_pending: 'info',
     closure_pending: 'success',
-    closure_rejected: 'danger',
+    plan_change: 'warning',
     task_overdue: 'danger',
     task_soon: 'warning'
   }
@@ -814,6 +856,7 @@ function getList() {
       t.closureCreateTime = null
       t.closureAuditor = ''
       t.reRectRequired = ''
+      t.planChangeStatus = ''
       const reportReq = request({ url: '/rectification/report/' + t.taskId, method: 'get' }).then(r => {
         const rpt = r.data || {}
         t.approStatus = rpt.unitApproveStatus || null
@@ -834,9 +877,14 @@ function getList() {
         t.closureAuditor = closure.updateBy || closure.auditBy || ''
         t.reRectRequired = closure.reRectRequired || ''
       }).catch(() => {})
-      return Promise.all([reportReq, closureReq])
+      const changeReq = getLatestPlanChange(t.taskId).then(r => {
+        const change = r.data || {}
+        t.planChangeStatus = change.status || ''
+        t.planChangeTime = change.updateTime || change.applyTime || change.createTime || null
+      }).catch(() => {})
+      return Promise.all([reportReq, closureReq, changeReq])
     })).then(() => {
-      taskList.value = [...tasks]
+      taskList.value = [...tasks].sort((left, right) => taskBusinessTime(right) - taskBusinessTime(left))
     })
   }).finally(() => {
     loading.value = false
@@ -859,6 +907,14 @@ function resetQuery() {
   handleQuery()
 }
 
+function canApproveReport(row) {
+  return isUnitLeader.value
+    && row.reportChecked === true
+    && !!row.reportId
+    && String(row.reportStatus) === '1'
+    && String(row.approStatus || '0') === '0'
+}
+
 function prioritizeNoticeTask(tasks) {
   const taskId = route.query.taskId
   if (!taskId) return tasks
@@ -867,6 +923,22 @@ function prioritizeNoticeTask(tasks) {
     if (String(right.taskId) === String(taskId)) return 1
     return 0
   })
+}
+
+function taskBusinessTime(task) {
+  return Math.max(
+    timeValue(task.updateTime),
+    timeValue(task.confirmTime),
+    timeValue(task.dispatchTime),
+    timeValue(task.createTime),
+    timeValue(task.reportUpdateTime),
+    timeValue(task.reportSubmitTime),
+    timeValue(task.reportApproveTime),
+    timeValue(task.closureUpdateTime),
+    timeValue(task.closureAuditTime),
+    timeValue(task.closureCreateTime),
+    timeValue(task.planChangeTime)
+  )
 }
 
 function isNoticeTarget(taskId) {
@@ -946,6 +1018,10 @@ function handleEditPlan(row) {
   router.push('/rectification/task-page/detail/' + row.taskId + '?tab=plan')
 }
 
+function handlePlanChange(row) {
+  router.push('/rectification/task-page/detail/' + row.taskId + '?tab=plan')
+}
+
 function handleSubmitReport(row) {
   const tab = canModifyReport(row) ? 'plan' : 'report'
   router.push('/rectification/task-page/detail/' + row.taskId + '?tab=' + tab)
@@ -1003,11 +1079,13 @@ function getAuditTodoList() {
   Promise.all([
     listIssue({ ...commonParams, status: '0' }).catch(() => ({ rows: [] })),
     listTask(commonParams).catch(() => ({ rows: [] })),
-    listClosure(commonParams).catch(() => ({ rows: [] }))
-  ]).then(([issueRes, taskRes, closureRes]) => {
+    listClosure(commonParams).catch(() => ({ rows: [] })),
+    listPendingPlanChanges().catch(() => ({ data: [] }))
+  ]).then(([issueRes, taskRes, closureRes, changeRes]) => {
     const issues = issueRes.rows || []
     const tasks = taskRes.rows || []
     const closures = closureRes.rows || []
+    const planChanges = changeRes.data || []
     const todos = []
 
     issues.forEach(issue => {
@@ -1031,24 +1109,24 @@ function getAuditTodoList() {
         typeLabel: '待审销号',
         title: item.issueTitle || '销号申请待审核',
         bizNo: item.closureNo || item.taskNo || item.closureId,
-        owner: item.applicant || item.applyBy || item.createBy || '-',
+        owner: item.applyUserName || item.applicant || item.applyBy || item.createBy || '-',
         time: item.applyTime || item.createTime,
         desc: closureRemarkText(item) || '整改单位已提交销号申请，请审核整改报告和佐证材料。',
         path: '/rectification/closure'
       })
     })
 
-    closures.filter(item => String(item.status) === '2').forEach(item => {
+    planChanges.forEach(item => {
       todos.push({
-        key: 'closure-reject-' + item.closureId,
-        type: 'closure_rejected',
-        typeLabel: '整改不到位',
-        title: item.issueTitle || '整改不到位待跟踪',
-        bizNo: item.closureNo || item.taskNo || item.closureId,
-        owner: item.applicant || item.applyBy || item.createBy || '-',
-        time: item.auditTime || item.updateTime || item.createTime,
-        desc: item.reRectRequired || item.auditOpinion || '销号已驳回，请跟踪二次整改进展。',
-        path: item.taskId ? ('/rectification/task-page/detail/' + item.taskId) : '/rectification/closure'
+        key: 'plan-change-' + item.extensionId,
+        type: 'plan_change',
+        typeLabel: '方案变更审批',
+        title: item.applyType === '2' ? '长期持续整改申请' : '延期申请',
+        bizNo: item.taskId,
+        owner: item.applyUserName || item.createBy || '-',
+        time: item.applyTime || item.createTime,
+        desc: item.reason || '整改单位已提交方案变更申请，请审批。',
+        path: '/rectification/task-page/detail/' + item.taskId + '?tab=plan'
       })
     })
 
@@ -1095,7 +1173,7 @@ function sortAuditTodos(list) {
   const order = {
     task_overdue: 1,
     closure_pending: 2,
-    closure_rejected: 3,
+    plan_change: 3,
     issue_pending: 4,
     task_soon: 5
   }
@@ -1221,6 +1299,14 @@ function submitExtension() {
 
 onMounted(() => {
   getList()
+})
+
+onActivated(() => {
+  if (hasActivatedOnce.value) {
+    getList()
+  } else {
+    hasActivatedOnce.value = true
+  }
 })
 
 watch(() => route.query.taskId, (next, previous) => {
@@ -1398,6 +1484,11 @@ watch(() => route.query.taskId, (next, previous) => {
 
 .audit-todo-mobile-list {
   display: none;
+}
+
+.mobile-card-pagination {
+  justify-content: center;
+  margin-top: 12px;
 }
 
 .audit-todo-card {

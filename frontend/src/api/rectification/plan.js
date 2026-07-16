@@ -29,3 +29,13 @@ export function approveExtension(data) {
 export function applyLongTerm(data) {
   return request({ url: '/rectification/plan/long-term', method: 'post', data: data })
 }
+
+// 查询任务最新方案变更申请
+export function getLatestPlanChange(taskId) {
+  return request({ url: '/rectification/plan/change/latest/' + taskId, method: 'get' })
+}
+
+// 查询当前用户待审批的方案变更
+export function listPendingPlanChanges() {
+  return request({ url: '/rectification/plan/change/pending', method: 'get' })
+}

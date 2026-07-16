@@ -9,6 +9,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,7 +45,7 @@ public class RectStatisticsController extends BaseController {
     @GetMapping("/home-overview")
     public AjaxResult homeOverview() {
         Map<String, Object> result = new HashMap<>();
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         long total = all.size();
         long completed = all.stream().filter(i -> "3".equals(i.getStatus())).count();
         long inProgress = all.stream().filter(i -> "1".equals(i.getStatus())).count();
@@ -63,27 +65,27 @@ public class RectStatisticsController extends BaseController {
         boolean unitRole = SecurityUtils.hasRole("audited_unit_leader")
                 || SecurityUtils.hasRole("audited_unit_liaison")
                 || SecurityUtils.hasRole("rect_responsible");
-        List<RectTask> tasks;
-        if (unitRole && deptId != null) {
-            tasks = rectTaskMapper.selectRectTaskListByDeptId(deptId);
-        } else {
-            tasks = rectTaskMapper.selectRectTaskList(new RectTask());
-        }
+        List<RectTask> tasks = getScopedTasks();
         result.put("tasks", tasks.size());
         result.put("myTasks", tasks.size());
         result.put("recentTasks", buildRecentTasks(tasks));
 
         RectClosure pendingClosure = new RectClosure();
         pendingClosure.setStatus("0");
-        result.put("closures", rectClosureMapper.selectRectClosureList(pendingClosure).size());
+        List<RectClosure> closures = rectClosureMapper.selectRectClosureList(pendingClosure);
+        if (!isFullStatisticsRole()) {
+            Set<Long> taskIds = getScopedTaskIds();
+            closures = closures.stream().filter(item -> taskIds.contains(item.getTaskId())).collect(Collectors.toList());
+        }
+        result.put("closures", closures.size());
         return success(result);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/overview")
     public AjaxResult overview(StatisticsQueryDTO query) {
         StatisticsResultVO vo = new StatisticsResultVO();
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         long total = all.size();
         long completed = all.stream().filter(i -> "3".equals(i.getStatus())).count();
         long inProgress = all.stream().filter(i -> "1".equals(i.getStatus())).count();
@@ -105,10 +107,10 @@ public class RectStatisticsController extends BaseController {
         return success(vo);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/by-category")
     public AjaxResult byCategory() {
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         Map<String, Long> map = new HashMap<>();
         for (RectIssue i : all) {
             String cat = i.getIssueCategory() != null ? i.getIssueCategory() : "OTHER";
@@ -125,10 +127,10 @@ public class RectStatisticsController extends BaseController {
         return success(list);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/by-status")
     public AjaxResult byStatus() {
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         Map<String, Long> map = new HashMap<>();
         String[] st = {"0","1","2","3","4"};
         String[] lb = {"待下发","整改中","待审核","已销号","持续整改"};
@@ -145,14 +147,14 @@ public class RectStatisticsController extends BaseController {
         return success(list);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/overdue")
     public AjaxResult overdue() {
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         Date now = new Date();
         long count = all.stream().filter(i -> {
             if (i.getDeadline() == null) return false;
-            if ("3".equals(i.getStatus())) return false;
+            if ("3".equals(i.getStatus()) || "4".equals(i.getStatus())) return false;
             return i.getDeadline().before(now);
         }).count();
         Map<String, Object> m = new HashMap<>();
@@ -161,17 +163,17 @@ public class RectStatisticsController extends BaseController {
         return success(m);
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/fund-recovery")
     public AjaxResult fundRecovery() {
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         return success(buildRiskAreaList(all));
     }
 
-    @PreAuthorize("@ss.hasPermi('rectification:statistics:view')")
+    @PreAuthorize("@ss.hasPermi('rectification:statistics:view') or @ss.hasRole('audited_unit_leader')")
     @GetMapping("/recurring")
     public AjaxResult recurring() {
-        List<RectIssue> all = rectIssueMapper.selectRectIssueList(new RectIssue());
+        List<RectIssue> all = getScopedIssues();
         Map<String, List<RectIssue>> grouped = all.stream()
             .filter(i -> i.getIssueTitle() != null && !i.getIssueTitle().trim().isEmpty())
             .collect(Collectors.groupingBy(i -> normalizeTitle(i.getIssueTitle()), LinkedHashMap::new, Collectors.toList()));
@@ -253,7 +255,8 @@ public class RectStatisticsController extends BaseController {
                     increment(result.get(bucketIndex(cal, quarter)), "completed");
                 }
             }
-            if (issue.getDeadline() != null && issue.getDeadline().before(now) && !"3".equals(issue.getStatus())) {
+            if (issue.getDeadline() != null && issue.getDeadline().before(now)
+                    && !"3".equals(issue.getStatus()) && !"4".equals(issue.getStatus())) {
                 cal.setTime(issue.getDeadline());
                 if (cal.get(Calendar.YEAR) == currentYear) {
                     increment(result.get(bucketIndex(cal, quarter)), "overdue");
@@ -306,6 +309,65 @@ public class RectStatisticsController extends BaseController {
             .collect(Collectors.toList());
     }
 
+    private List<RectIssue> getScopedIssues() {
+        if (isFullStatisticsRole()) {
+            return rectIssueMapper.selectRectIssueList(new RectIssue());
+        }
+        if (SecurityUtils.hasRole("audited_unit_leader") || SecurityUtils.hasRole("audited_unit_liaison")) {
+            RectIssue query = new RectIssue();
+            query.setResponsibleDeptId(SecurityUtils.getLoginUser().getDeptId());
+            return rectIssueMapper.selectRectIssueList(query);
+        }
+        Set<Long> taskIssueIds = getScopedTaskIssueIds();
+        return rectIssueMapper.selectRectIssueList(new RectIssue()).stream()
+                .filter(issue -> taskIssueIds.contains(issue.getIssueId()))
+                .collect(Collectors.toList());
+    }
+
+    private List<RectTask> getScopedTasks() {
+        if (isFullStatisticsRole()) {
+            return rectTaskMapper.selectRectTaskList(new RectTask());
+        }
+        Long deptId = SecurityUtils.getLoginUser().getDeptId();
+        if (SecurityUtils.hasRole("audited_unit_leader") || SecurityUtils.hasRole("audited_unit_liaison")) {
+            return deptId == null ? new ArrayList<>() : rectTaskMapper.selectRectTaskListByDeptId(deptId);
+        }
+        if (SecurityUtils.hasRole("rect_responsible")) {
+            return rectTaskMapper.selectRectTaskListByResponsibleUserId(SecurityUtils.getUserId());
+        }
+        return new ArrayList<>();
+    }
+
+    private Set<Long> getScopedTaskIds() {
+        return getScopedTasks().stream().map(RectTask::getTaskId).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+    }
+
+    private Set<Long> getScopedTaskIssueIds() {
+        Set<Long> issueIds = new HashSet<>();
+        for (RectTask task : getScopedTasks()) {
+            if (task.getIssueIds() == null) continue;
+            try {
+                String value = task.getIssueIds().replace("'", "\"");
+                if (value.startsWith("[") && value.endsWith("]")) {
+                    for (String id : value.substring(1, value.length() - 1).split(",")) {
+                        if (!id.trim().isEmpty()) issueIds.add(Long.valueOf(id.trim()));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Ignore malformed historical issue lists.
+            }
+        }
+        return issueIds;
+    }
+
+    private boolean isFullStatisticsRole() {
+        return SecurityUtils.hasRole("admin")
+                || SecurityUtils.hasRole("audit_director")
+                || SecurityUtils.hasRole("audit_lead")
+                || SecurityUtils.hasRole("school_leader");
+    }
+
     private String taskStatusLabel(String status) {
         if ("0".equals(status)) return "待确认";
         if ("1".equals(status)) return "整改中";
@@ -317,7 +379,10 @@ public class RectStatisticsController extends BaseController {
     }
 
     private boolean isOverdue(RectIssue issue) {
-        return issue.getDeadline() != null && issue.getDeadline().before(new Date()) && !"3".equals(issue.getStatus());
+        return issue.getDeadline() != null
+                && issue.getDeadline().before(new Date())
+                && !"3".equals(issue.getStatus())
+                && !"4".equals(issue.getStatus());
     }
 
     private int bucketIndex(Calendar cal, boolean quarter) {

@@ -1,6 +1,13 @@
 <template>
-  <div class="app-container task-detail-page">
-    <header class="detail-header">
+  <div v-loading="!approvalContextReady" class="app-container task-detail-page">
+    <section v-if="approvalContextReady && changeApprovalMode" class="change-approval-page">
+      <div class="change-approval-toolbar">
+        <el-button link icon="ArrowLeft" @click="goBack">返回审计待办</el-button>
+      </div>
+      <PlanEditor :task-id="taskId" @change-approved="goBack" />
+    </section>
+
+    <header v-if="approvalContextReady && !changeApprovalMode" class="detail-header">
       <div class="detail-header-bar">
         <el-button link icon="ArrowLeft" @click="goBack">返回</el-button>
         <el-tag :type="taskStatusTag(taskInfo.status)" effect="light">
@@ -28,7 +35,7 @@
       </div>
     </header>
 
-    <el-tabs v-model="activeTab" type="border-card" class="detail-tabs">
+    <el-tabs v-if="approvalContextReady && !changeApprovalMode" v-model="activeTab" type="border-card" class="detail-tabs">
       <el-tab-pane label="基本信息" name="basic">
         <div class="tab-content">
           <el-card shadow="never" class="mb20">
@@ -199,6 +206,8 @@ import { getIssue } from '@/api/rectification/issue'
 import { listMaterial, delMaterial } from '@/api/rectification/material'
 import { getReport } from '@/api/rectification/report'
 import useAppStore from '@/store/modules/app'
+import useUserStore from '@/store/modules/user'
+import { getLatestPlanChange } from '@/api/rectification/plan'
 import request from '@/utils/request'
 
 const PlanEditor = defineAsyncComponent(() => import('../plan/PlanEditor.vue'))
@@ -210,6 +219,7 @@ const TaskTimeline = defineAsyncComponent(() => import('./components/TaskTimelin
 const router = useRouter()
 const route = useRoute()
 const appStore = useAppStore()
+const userStore = useUserStore()
 const isMobile = computed(() => appStore.device === 'mobile')
 const descriptionColumns = computed(() => isMobile.value ? 1 : 2)
 
@@ -224,6 +234,18 @@ const materialList = ref([])
 const reportData = ref({})
 const loading = ref(false)
 const deptList = ref([])
+const approvalContextReady = ref(false)
+const latestChangeStatus = ref('')
+
+const isUnitLeader = computed(() => (userStore.roles || []).includes('audited_unit_leader'))
+const isAuditManager = computed(() => {
+  const roles = userStore.roles || []
+  return roles.includes('admin') || roles.includes('audit_director') || roles.includes('audit_lead')
+})
+const changeApprovalMode = computed(() => {
+  return (isUnitLeader.value && latestChangeStatus.value === '0')
+    || (isAuditManager.value && latestChangeStatus.value === '1')
+})
 
 const rectifyDeptName = computed(() => deptName(taskInfo.value.rectDeptId))
 const isTaskOverdue = computed(() => {
@@ -390,13 +412,48 @@ function goBack() {
   router.push('/rectification/my-tasks')
 }
 
+function loadPageContext() {
+  if (!isUnitLeader.value && !isAuditManager.value) {
+    approvalContextReady.value = true
+    loadDeptList()
+    loadTaskInfo()
+    return
+  }
+  getLatestPlanChange(taskId.value).then(response => {
+    latestChangeStatus.value = String(response.data?.status ?? '')
+  }).catch(() => {
+    latestChangeStatus.value = ''
+  }).finally(() => {
+    approvalContextReady.value = true
+    if (!changeApprovalMode.value) {
+      loadDeptList()
+      loadTaskInfo()
+    }
+  })
+}
+
 onMounted(() => {
-  loadDeptList()
-  loadTaskInfo()
+  loadPageContext()
 })
 </script>
 
 <style scoped>
+.change-approval-page {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.change-approval-toolbar {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin-bottom: 12px;
+}
+
+.change-approval-toolbar .el-button {
+  margin-left: 0;
+}
+
 .detail-header {
   padding: 18px 20px;
   margin-bottom: 16px;

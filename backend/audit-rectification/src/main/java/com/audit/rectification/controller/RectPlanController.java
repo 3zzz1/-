@@ -2,6 +2,7 @@ package com.audit.rectification.controller;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,19 @@ public class RectPlanController extends BaseController {
         return success(rectPlanService.selectRectPlanByTaskId(taskId));
     }
 
+    @PreAuthorize("@ss.hasAnyPermi('rectification:plan:query,rectification:plan:change:approve')")
+    @GetMapping("/change/latest/{taskId}")
+    public AjaxResult latestChange(@PathVariable Long taskId) {
+        return success(rectExtensionService.selectLatestByTaskId(taskId));
+    }
+
+    @PreAuthorize("@ss.hasPermi('rectification:plan:change:approve')")
+    @GetMapping("/change/pending")
+    public AjaxResult pendingChanges() {
+        List<RectExtension> list = rectExtensionService.selectPendingList();
+        return success(list);
+    }
+
     /**
      * 提交整改方案
      */
@@ -87,6 +101,7 @@ public class RectPlanController extends BaseController {
     @PostMapping("/extension")
     public AjaxResult applyExtension(@RequestBody ExtensionApplyDTO dto) {
         RectExtension extension = new RectExtension();
+        extension.setApplyType("1");
         extension.setIssueId(dto.getIssueId());
         extension.setTaskId(dto.getTaskId());
         extension.setExtensionDays(dto.getExtensionDays());
@@ -106,7 +121,7 @@ public class RectPlanController extends BaseController {
     /**
      * 审批延期申请
      */
-    @PreAuthorize("@ss.hasPermi('rectification:plan:extension:approve')")
+    @PreAuthorize("@ss.hasPermi('rectification:plan:change:approve')")
     @PutMapping("/extension/approve")
     public AjaxResult approveExtension(@RequestBody Map<String, Object> params) {
         Long extensionId = params.get("extensionId") != null
@@ -123,19 +138,19 @@ public class RectPlanController extends BaseController {
      */
     @PreAuthorize("@ss.hasPermi('rectification:plan:longTerm')")
     @PostMapping("/long-term")
-    public AjaxResult applyLongTerm(@RequestBody Map<String, Object> params) {
-        RectPlan plan = new RectPlan();
-        Long taskId = params.get("taskId") != null
-                ? Long.valueOf(params.get("taskId").toString()) : null;
-        Long issueId = params.get("issueId") != null
-                ? Long.valueOf(params.get("issueId").toString()) : null;
-        String reason = params.get("reason") != null
-                ? params.get("reason").toString() : null;
-        plan.setTaskId(taskId);
-        plan.setIssueId(issueId);
-        plan.setPlanType("2");
-        plan.setLongTermReason(reason);
-        plan.setPlanContent(reason);
-        return toAjax(rectPlanService.insertRectPlan(plan));
+    public AjaxResult applyLongTerm(@RequestBody ExtensionApplyDTO dto) {
+        RectExtension extension = new RectExtension();
+        extension.setApplyType("2");
+        extension.setTaskId(dto.getTaskId());
+        extension.setIssueId(dto.getIssueId());
+        extension.setReason(dto.getReason());
+        extension.setStageGoal(dto.getStageGoal());
+        try {
+            extension.setReviewDate(new SimpleDateFormat("yyyy-MM-dd").parse(dto.getReviewDate()));
+            extension.setExpectedFinishDate(new SimpleDateFormat("yyyy-MM-dd").parse(dto.getExpectedFinishDate()));
+        } catch (Exception e) {
+            return error("日期格式错误");
+        }
+        return toAjax(rectExtensionService.insertRectExtension(extension));
     }
 }

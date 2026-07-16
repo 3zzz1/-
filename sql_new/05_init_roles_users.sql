@@ -44,7 +44,7 @@ INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_lead, menu_id FROM sys
     'rectification:issue:list','rectification:issue:query','rectification:issue:add',
     'rectification:task:list','rectification:task:query','rectification:task:dispatch',
     'rectification:task:batchDispatch','rectification:task:myList',
-    'rectification:plan:query','rectification:plan:add','rectification:plan:edit',
+    'rectification:plan:query','rectification:plan:add','rectification:plan:edit','rectification:plan:change:approve',
     'rectification:material:list','rectification:material:upload','rectification:material:download',
     'rectification:report:query','rectification:report:add','rectification:report:submit',
     'rectification:closure:list','rectification:closure:query','rectification:closure:audit',
@@ -69,6 +69,7 @@ INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_school, menu_id FROM s
 -- 被审单位负责人：查看本单位
 INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_leader, menu_id FROM sys_menu WHERE perms IN (
     'rectification:issue:query','rectification:task:myList','rectification:task:query',
+    'rectification:plan:change:approve',
     'rectification:report:query','rectification:closure:query');
 
 -- 被审单位联络员：操作本单位

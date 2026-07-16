@@ -106,7 +106,7 @@
       </el-table-column>
       <el-table-column label="申请人" align="center" prop="applicant" width="100">
         <template #default="scope">
-          {{ scope.row.applicant || scope.row.applyBy || scope.row.createBy || '-' }}
+          {{ scope.row.applyUserName || scope.row.applicant || scope.row.applyBy || scope.row.createBy || '-' }}
         </template>
       </el-table-column>
       <el-table-column label="申请时间" align="center" prop="applyTime" width="160">
@@ -165,7 +165,7 @@
           <el-tag :type="getStatusTagType(item.status)" size="small">{{ getStatusLabel(item.status) }}</el-tag>
         </div>
         <div class="closure-card-meta">
-          <span><em>申请人</em><b>{{ item.applicant || item.applyBy || item.createBy || '-' }}</b></span>
+          <span><em>申请人</em><b>{{ item.applyUserName || item.applicant || item.applyBy || item.createBy || '-' }}</b></span>
           <span><em>申请时间</em><b>{{ item.applyTime || item.createTime || '-' }}</b></span>
           <span><em>审核人</em><b>{{ item.auditor || item.auditBy || '-' }}</b></span>
           <span><em>审核时间</em><b>{{ item.auditTime || item.updateTime || '-' }}</b></span>
@@ -211,7 +211,7 @@
         </div>
         <h3>{{ viewData.issueTitle || '未命名问题' }}</h3>
         <div class="closure-detail-meta">
-          <div><span>申请人</span><strong>{{ viewData.applicant || viewData.applyBy || viewData.createBy || '-' }}</strong></div>
+          <div><span>申请人</span><strong>{{ viewData.applyUserName || viewData.applicant || viewData.applyBy || viewData.createBy || '-' }}</strong></div>
           <div><span>申请时间</span><strong>{{ viewData.applyTime || viewData.createTime || '-' }}</strong></div>
           <div><span>审核人</span><strong>{{ viewData.auditor || viewData.auditUserId || '-' }}</strong></div>
           <div><span>审核时间</span><strong>{{ viewData.auditTime || viewData.updateTime || '-' }}</strong></div>

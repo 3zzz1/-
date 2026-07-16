@@ -23,6 +23,9 @@ public class RectExtension extends BaseEntity {
     /** 关联任务ID */
     private Long taskId;
 
+    /** 申请类型（1=延期 2=长期持续整改） */
+    private String applyType;
+
     /** 原截止日期 */
     @JsonFormat(pattern = "yyyy-MM-dd")
     private Date originalDeadline;
@@ -37,11 +40,25 @@ public class RectExtension extends BaseEntity {
     /** 延期原因 */
     private String reason;
 
-    /** 状态（0=待审批 1=已通过 2=已驳回 3=转持续整改） */
+    /** 阶段整改目标 */
+    private String stageGoal;
+
+    /** 下一次复核日期 */
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private Date reviewDate;
+
+    /** 预计最终完成日期 */
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private Date expectedFinishDate;
+
+    /** 状态（0=单位审批中 1=审计处审批中 2=已通过 3=单位驳回 4=审计处驳回） */
     private String status;
 
     /** 申请人ID */
     private Long applyUserId;
+
+    /** 申请人真实姓名 */
+    private String applyUserName;
 
     /** 申请时间 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -56,6 +73,16 @@ public class RectExtension extends BaseEntity {
 
     /** 审批意见 */
     private String approveOpinion;
+
+    /** 审计处审批人ID */
+    private Long auditApproveUserId;
+
+    /** 审计处审批时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date auditApproveTime;
+
+    /** 审计处审批意见 */
+    private String auditApproveOpinion;
 
     /** 删除标志（0=存在 2=删除） */
     private String delFlag;
@@ -82,6 +109,14 @@ public class RectExtension extends BaseEntity {
 
     public void setTaskId(Long taskId) {
         this.taskId = taskId;
+    }
+
+    public String getApplyType() {
+        return applyType;
+    }
+
+    public void setApplyType(String applyType) {
+        this.applyType = applyType;
     }
 
     public Date getOriginalDeadline() {
@@ -116,6 +151,30 @@ public class RectExtension extends BaseEntity {
         this.reason = reason;
     }
 
+    public String getStageGoal() {
+        return stageGoal;
+    }
+
+    public void setStageGoal(String stageGoal) {
+        this.stageGoal = stageGoal;
+    }
+
+    public Date getReviewDate() {
+        return reviewDate;
+    }
+
+    public void setReviewDate(Date reviewDate) {
+        this.reviewDate = reviewDate;
+    }
+
+    public Date getExpectedFinishDate() {
+        return expectedFinishDate;
+    }
+
+    public void setExpectedFinishDate(Date expectedFinishDate) {
+        this.expectedFinishDate = expectedFinishDate;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -130,6 +189,14 @@ public class RectExtension extends BaseEntity {
 
     public void setApplyUserId(Long applyUserId) {
         this.applyUserId = applyUserId;
+    }
+
+    public String getApplyUserName() {
+        return applyUserName;
+    }
+
+    public void setApplyUserName(String applyUserName) {
+        this.applyUserName = applyUserName;
     }
 
     public Date getApplyTime() {
@@ -162,6 +229,30 @@ public class RectExtension extends BaseEntity {
 
     public void setApproveOpinion(String approveOpinion) {
         this.approveOpinion = approveOpinion;
+    }
+
+    public Long getAuditApproveUserId() {
+        return auditApproveUserId;
+    }
+
+    public void setAuditApproveUserId(Long auditApproveUserId) {
+        this.auditApproveUserId = auditApproveUserId;
+    }
+
+    public Date getAuditApproveTime() {
+        return auditApproveTime;
+    }
+
+    public void setAuditApproveTime(Date auditApproveTime) {
+        this.auditApproveTime = auditApproveTime;
+    }
+
+    public String getAuditApproveOpinion() {
+        return auditApproveOpinion;
+    }
+
+    public void setAuditApproveOpinion(String auditApproveOpinion) {
+        this.auditApproveOpinion = auditApproveOpinion;
     }
 
     public String getDelFlag() {

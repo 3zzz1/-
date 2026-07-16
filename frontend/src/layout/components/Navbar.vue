@@ -179,8 +179,7 @@ function loadUnreadCount(showTip = false) {
 
     if (!initializedNotice) {
       initializedNotice = true
-      if (nextCount > 0 && showTip && !sessionStorage.getItem('rect_notice_login_tip')) {
-        sessionStorage.setItem('rect_notice_login_tip', '1')
+      if (nextCount > 0 && showTip) {
         showUnreadTip(nextCount)
       }
       return
@@ -193,9 +192,7 @@ function loadUnreadCount(showTip = false) {
 }
 
 function refreshNoticeState() {
-  getUnreadCount().then(res => {
-    unreadCount.value = Number(res.data || 0)
-  }).catch(() => {})
+  loadUnreadCount(true)
 
   listMyNotification({ pageNum: 1, pageSize: 8 }).then(res => {
     const rows = res.rows || []
@@ -282,7 +279,14 @@ function openNotice(item) {
   }
   if (taskId) {
     mobileNoticeOpen.value = false
-    router.push({ path: '/rectification/my-tasks', query: { taskId } }).catch(() => {})
+    const isPlanChange = String(item.title || '').includes('方案变更')
+      || String(item.title || '').includes('延期')
+      || String(item.title || '').includes('持续整改')
+    if (isPlanChange) {
+      router.push({ path: '/rectification/task-page/detail/' + taskId, query: { tab: 'plan' } }).catch(() => {})
+    } else {
+      router.push({ path: '/rectification/my-tasks', query: { taskId } }).catch(() => {})
+    }
   } else if (item.issueId) {
     mobileNoticeOpen.value = false
     router.push('/rectification/my-tasks').catch(() => {})

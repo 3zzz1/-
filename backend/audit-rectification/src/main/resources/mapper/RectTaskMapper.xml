@@ -41,7 +41,7 @@
             <if test="rectDeptId != null">and rect_dept_id = #{rectDeptId}</if>
             and del_flag = '0'
         </where>
-        order by create_time desc
+        order by coalesce(update_time, confirm_time, dispatch_time, create_time) desc, task_id desc
     </select>
 
     <select id="selectRectTaskById" parameterType="Long" resultMap="RectTaskResult">
@@ -53,7 +53,7 @@
         <include refid="selectRectTaskVo"/>
         where rect_dept_id = #{deptId}
         and del_flag = '0'
-        order by create_time desc
+        order by coalesce(update_time, confirm_time, dispatch_time, create_time) desc, task_id desc
     </select>
 
     <select id="selectRectTaskListForUnitLeader" parameterType="Long" resultMap="RectTaskResult">
@@ -63,12 +63,19 @@
         t.dispatch_user_id, t.dispatch_time, t.confirm_time, t.del_flag,
         t.create_by, t.create_time, t.update_by, t.update_time, t.remark
         from rect_task t
-        inner join rect_report r on r.task_id = t.task_id
         where t.rect_dept_id = #{deptId}
         and t.del_flag = '0'
-        and r.del_flag = '0'
-        and r.submit_time is not null
-        order by t.create_time desc
+        and (
+            exists (
+                select 1 from rect_report r
+                where r.task_id = t.task_id and r.del_flag = '0' and r.submit_time is not null
+            )
+            or exists (
+                select 1 from rect_extension e
+                where e.task_id = t.task_id and e.del_flag = '0' and e.status = '0'
+            )
+        )
+        order by coalesce(t.update_time, t.confirm_time, t.dispatch_time, t.create_time) desc, t.task_id desc
     </select>
 
     <select id="selectRectTaskListByResponsibleUserId" parameterType="Long" resultMap="RectTaskResult">
@@ -82,7 +89,7 @@
         where p.responsible_user_id = #{userId}
         and p.del_flag = '0'
         and t.del_flag = '0'
-        order by t.create_time desc
+        order by coalesce(t.update_time, t.confirm_time, t.dispatch_time, t.create_time) desc, t.task_id desc
     </select>
 
     <insert id="insertRectTask" parameterType="com.audit.rectification.domain.RectTask" useGeneratedKeys="true" keyProperty="taskId">

@@ -32,6 +32,9 @@ public class RectClosure extends BaseEntity {
     /** 申请人ID */
     private Long applyUserId;
 
+    /** 申请人真实姓名 */
+    private String applyUserName;
+
     /** 申请时间 */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date applyTime;
@@ -101,6 +104,14 @@ public class RectClosure extends BaseEntity {
 
     public void setApplyUserId(Long applyUserId) {
         this.applyUserId = applyUserId;
+    }
+
+    public String getApplyUserName() {
+        return applyUserName;
+    }
+
+    public void setApplyUserName(String applyUserName) {
+        this.applyUserName = applyUserName;
     }
 
     public Date getApplyTime() {

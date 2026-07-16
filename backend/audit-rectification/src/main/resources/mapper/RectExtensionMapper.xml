@@ -6,16 +6,24 @@
         <id     property="extensionId"       column="extension_id"        />
         <result property="issueId"           column="issue_id"            />
         <result property="taskId"            column="task_id"             />
+        <result property="applyType"         column="apply_type"          />
         <result property="originalDeadline"  column="original_deadline"   />
         <result property="extensionDays"     column="extension_days"      />
         <result property="newDeadline"       column="new_deadline"        />
         <result property="reason"            column="reason"              />
+        <result property="stageGoal"         column="stage_goal"          />
+        <result property="reviewDate"        column="review_date"         />
+        <result property="expectedFinishDate" column="expected_finish_date" />
         <result property="status"            column="status"              />
         <result property="applyUserId"       column="apply_user_id"       />
+        <result property="applyUserName"     column="apply_user_name"     />
         <result property="applyTime"         column="apply_time"          />
         <result property="approveUserId"     column="approve_user_id"     />
         <result property="approveTime"       column="approve_time"        />
         <result property="approveOpinion"    column="approve_opinion"     />
+        <result property="auditApproveUserId" column="audit_approve_user_id" />
+        <result property="auditApproveTime"  column="audit_approve_time"  />
+        <result property="auditApproveOpinion" column="audit_approve_opinion" />
         <result property="delFlag"           column="del_flag"            />
         <result property="createBy"          column="create_by"           />
         <result property="createTime"        column="create_time"         />
@@ -25,9 +33,11 @@
     </resultMap>
 
     <sql id="selectRectExtensionVo">
-        select extension_id, issue_id, task_id, original_deadline, extension_days, new_deadline,
-        reason, status, apply_user_id, apply_time,
+        select extension_id, issue_id, task_id, apply_type, original_deadline, extension_days, new_deadline,
+        reason, stage_goal, review_date, expected_finish_date, status, apply_user_id,
+        (select nick_name from sys_user where user_id = apply_user_id) as apply_user_name, apply_time,
         approve_user_id, approve_time, approve_opinion,
+        audit_approve_user_id, audit_approve_time, audit_approve_opinion,
         del_flag, create_by, create_time, update_by, update_time, remark
         from rect_extension
     </sql>
@@ -37,24 +47,35 @@
         <where>
             <if test="taskId != null">and task_id = #{taskId}</if>
             <if test="issueId != null">and issue_id = #{issueId}</if>
+            <if test="applyType != null and applyType != ''">and apply_type = #{applyType}</if>
             <if test="status != null and status != ''">and status = #{status}</if>
             and del_flag = '0'
         </where>
-        order by create_time desc
+        order by coalesce(update_time, audit_approve_time, approve_time, apply_time, create_time) desc, extension_id desc
     </select>
 
     <select id="selectRectExtensionById" parameterType="Long" resultMap="RectExtensionResult">
         <include refid="selectRectExtensionVo"/> where extension_id = #{extensionId}
     </select>
 
+    <select id="selectLatestByTaskId" parameterType="Long" resultMap="RectExtensionResult">
+        <include refid="selectRectExtensionVo"/>
+        where task_id = #{taskId} and del_flag = '0'
+        order by coalesce(update_time, audit_approve_time, approve_time, apply_time, create_time) desc, extension_id desc limit 1
+    </select>
+
     <insert id="insertRectExtension" parameterType="com.audit.rectification.domain.RectExtension" useGeneratedKeys="true" keyProperty="extensionId">
         insert into rect_extension (
             <if test="issueId != null">issue_id,</if>
             <if test="taskId != null">task_id,</if>
+            <if test="applyType != null and applyType != ''">apply_type,</if>
             <if test="originalDeadline != null">original_deadline,</if>
             <if test="extensionDays != null">extension_days,</if>
             <if test="newDeadline != null">new_deadline,</if>
             <if test="reason != null and reason != ''">reason,</if>
+            <if test="stageGoal != null and stageGoal != ''">stage_goal,</if>
+            <if test="reviewDate != null">review_date,</if>
+            <if test="expectedFinishDate != null">expected_finish_date,</if>
             <if test="status != null and status != ''">status,</if>
             <if test="applyUserId != null">apply_user_id,</if>
             <if test="delFlag != null and delFlag != ''">del_flag,</if>
@@ -65,10 +86,14 @@
         )values(
             <if test="issueId != null">#{issueId},</if>
             <if test="taskId != null">#{taskId},</if>
+            <if test="applyType != null and applyType != ''">#{applyType},</if>
             <if test="originalDeadline != null">#{originalDeadline},</if>
             <if test="extensionDays != null">#{extensionDays},</if>
             <if test="newDeadline != null">#{newDeadline},</if>
             <if test="reason != null and reason != ''">#{reason},</if>
+            <if test="stageGoal != null and stageGoal != ''">#{stageGoal},</if>
+            <if test="reviewDate != null">#{reviewDate},</if>
+            <if test="expectedFinishDate != null">#{expectedFinishDate},</if>
             <if test="status != null and status != ''">#{status},</if>
             <if test="applyUserId != null">#{applyUserId},</if>
             <if test="delFlag != null and delFlag != ''">#{delFlag},</if>
@@ -86,6 +111,9 @@
             <if test="approveUserId != null">approve_user_id = #{approveUserId},</if>
             <if test="approveTime != null">approve_time = #{approveTime},</if>
             <if test="approveOpinion != null">approve_opinion = #{approveOpinion},</if>
+            <if test="auditApproveUserId != null">audit_approve_user_id = #{auditApproveUserId},</if>
+            <if test="auditApproveTime != null">audit_approve_time = #{auditApproveTime},</if>
+            <if test="auditApproveOpinion != null">audit_approve_opinion = #{auditApproveOpinion},</if>
             <if test="updateBy != null and updateBy != ''">update_by = #{updateBy},</if>
             <if test="remark != null">remark = #{remark},</if>
             update_time = sysdate()

@@ -50,7 +50,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="responsiblePerson != null and responsiblePerson != ''">and responsible_person like concat('%', #{responsiblePerson}, '%')</if>
             and del_flag = '0'
         </where>
-        order by create_time desc
+        order by coalesce(update_time, closure_date, create_time) desc, issue_id desc
     </select>
 
     <select id="selectRectIssueById" parameterType="Long" resultMap="RectIssueResult">

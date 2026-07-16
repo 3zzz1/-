@@ -84,7 +84,7 @@
           </el-table>
 
           <div v-else v-loading="riskLoading" class="mobile-list">
-            <div v-for="item in riskAreaData" :key="item.area" class="mobile-data-card">
+            <div v-for="item in pagedRiskAreaData" :key="item.area" class="mobile-data-card">
               <div class="mobile-card-title">
                 <span>{{ item.area }}</span>
                 <el-tag :type="item.overdue > 0 ? 'danger' : 'success'" effect="plain">
@@ -112,6 +112,7 @@
               />
               <div class="mobile-suggestion">{{ riskSuggestion(item) }}</div>
             </div>
+            <el-pagination v-if="riskAreaData.length > 2" v-model:current-page="riskMobilePage" :page-size="2" :total="riskAreaData.length" layout="prev, pager, next" small background class="mobile-card-pagination" />
             <el-empty v-if="!riskLoading && riskAreaData.length === 0" description="暂无数据" :image-size="80" />
           </div>
         </el-card>
@@ -146,7 +147,7 @@
           </el-table>
 
           <div v-else v-loading="recurringLoading" class="mobile-list">
-            <div v-for="item in recurringData" :key="`${item.issueType}-${item.area}`" class="mobile-data-card">
+            <div v-for="item in pagedRecurringData" :key="`${item.issueType}-${item.area}`" class="mobile-data-card">
               <div class="mobile-card-title">
                 <span>{{ item.issueType || '未命名问题' }}</span>
                 <el-tag :type="riskTag(item.riskLevel)" effect="plain">{{ item.riskLevel || '-' }}</el-tag>
@@ -168,6 +169,7 @@
               </div>
               <div class="mobile-suggestion">{{ item.suggestion || '暂无建议' }}</div>
             </div>
+            <el-pagination v-if="recurringData.length > 2" v-model:current-page="recurringMobilePage" :page-size="2" :total="recurringData.length" layout="prev, pager, next" small background class="mobile-card-pagination" />
             <el-empty v-if="!recurringLoading && recurringData.length === 0" description="暂无数据" :image-size="80" />
           </div>
         </el-card>
@@ -177,7 +179,7 @@
 </template>
 
 <script setup name="RectificationStatistics">
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import * as echarts from 'echarts'
 import {
   getOverview,
@@ -201,10 +203,14 @@ const riskLoading = ref(false)
 const recurringLoading = ref(false)
 const riskAreaData = ref([])
 const recurringData = ref([])
+const riskMobilePage = ref(1)
+const recurringMobilePage = ref(1)
 const categoryData = ref([])
 const statusData = ref([])
 const trendData = ref([])
 const isMobile = ref(window.innerWidth <= 768)
+const pagedRiskAreaData = computed(() => riskAreaData.value.slice((riskMobilePage.value - 1) * 2, riskMobilePage.value * 2))
+const pagedRecurringData = computed(() => recurringData.value.slice((recurringMobilePage.value - 1) * 2, recurringMobilePage.value * 2))
 
 const overviewItems = ref([
   { title: '问题总数', value: 0, unit: '个', icon: 'DataAnalysis' },
@@ -506,6 +512,11 @@ function riskSuggestion(row) {
   display: grid;
   gap: 12px;
   min-height: 120px;
+}
+
+.mobile-card-pagination {
+  justify-content: center;
+  margin-top: 12px;
 }
 
 .mobile-data-card {

@@ -13,6 +13,9 @@ public class ExtensionApplyDTO {
     /** 任务ID */
     private Long taskId;
 
+    /** 申请类型（1=延期 2=长期持续整改） */
+    private String applyType;
+
     /** 原截止日期 */
     private String originalDeadline;
 
@@ -24,6 +27,15 @@ public class ExtensionApplyDTO {
 
     /** 延期原因 */
     private String reason;
+
+    /** 阶段整改目标 */
+    private String stageGoal;
+
+    /** 下一次复核日期 */
+    private String reviewDate;
+
+    /** 预计最终完成日期 */
+    private String expectedFinishDate;
 
     public Long getIssueId() {
         return issueId;
@@ -39,6 +51,14 @@ public class ExtensionApplyDTO {
 
     public void setTaskId(Long taskId) {
         this.taskId = taskId;
+    }
+
+    public String getApplyType() {
+        return applyType;
+    }
+
+    public void setApplyType(String applyType) {
+        this.applyType = applyType;
     }
 
     public String getOriginalDeadline() {
@@ -71,5 +91,29 @@ public class ExtensionApplyDTO {
 
     public void setReason(String reason) {
         this.reason = reason;
+    }
+
+    public String getStageGoal() {
+        return stageGoal;
+    }
+
+    public void setStageGoal(String stageGoal) {
+        this.stageGoal = stageGoal;
+    }
+
+    public String getReviewDate() {
+        return reviewDate;
+    }
+
+    public void setReviewDate(String reviewDate) {
+        this.reviewDate = reviewDate;
+    }
+
+    public String getExpectedFinishDate() {
+        return expectedFinishDate;
+    }
+
+    public void setExpectedFinishDate(String expectedFinishDate) {
+        this.expectedFinishDate = expectedFinishDate;
     }
 }

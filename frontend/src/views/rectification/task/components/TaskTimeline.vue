@@ -14,7 +14,7 @@
       <div v-if="progressList.length > 0">
         <el-timeline>
           <el-timeline-item
-            v-for="item in progressList"
+            v-for="item in pagedProgressList"
             :key="item.progressId || item.id"
             :timestamp="item.operateTime || item.createTime || '-'"
             :color="getTimelineColor(item.progressType)"
@@ -51,6 +51,16 @@
             </el-card>
           </el-timeline-item>
         </el-timeline>
+        <el-pagination
+          v-if="progressList.length > 2"
+          v-model:current-page="mobilePage"
+          :page-size="2"
+          :total="progressList.length"
+          layout="prev, pager, next"
+          small
+          background
+          class="timeline-pagination"
+        />
       </div>
 
       <el-empty v-else description="暂无进展记录" />
@@ -84,6 +94,19 @@ const props = defineProps({
 
 const loading = ref(false)
 const progressList = ref([])
+const mobilePage = ref(1)
+const pagedProgressList = computed(() => {
+  const sorted = [...progressList.value].sort((a, b) => progressTime(b) - progressTime(a))
+  if (window.innerWidth > 768) return sorted
+  const start = (mobilePage.value - 1) * 2
+  return sorted.slice(start, start + 2)
+})
+
+function progressTime(item) {
+  const value = item.operateTime || item.updateTime || item.createTime
+  const time = value ? new Date(value).getTime() : 0
+  return Number.isNaN(time) ? 0 : time
+}
 
 // Progress type map: key to Chinese label
 const progressTypeMap = {
@@ -319,6 +342,11 @@ watch(() => props.taskId, loadProgress, { immediate: true })
 </script>
 
 <style scoped lang="scss">
+.timeline-pagination {
+  justify-content: center;
+  margin-top: 12px;
+}
+
 .task-timeline {
   .card-header {
     display: flex;

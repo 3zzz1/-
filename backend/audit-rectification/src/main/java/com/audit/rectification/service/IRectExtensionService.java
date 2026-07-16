@@ -1,5 +1,6 @@
 package com.audit.rectification.service;
 
+import java.util.List;
 import com.audit.rectification.domain.RectExtension;
 
 /**
@@ -27,4 +28,8 @@ public interface IRectExtensionService {
      * @return 结果
      */
     int approveExtension(Long extensionId, String status, String opinion);
+
+    RectExtension selectLatestByTaskId(Long taskId);
+
+    List<RectExtension> selectPendingList();
 }
