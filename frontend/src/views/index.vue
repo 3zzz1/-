@@ -108,6 +108,7 @@ const homeType = computed(() => {
   if (hasAnyRole(['audit_director', 'audit_lead'])) return 'auditManager'
   if (hasAnyRole(['audit_staff'])) return 'auditStaff'
   if (hasAnyRole(['school_leader'])) return 'schoolLeader'
+  if (hasAnyRole(['external_auditor'])) return 'externalAuditor'
   if (hasAnyRole(['audited_unit_leader'])) return 'unitLeader'
   if (hasAnyRole(['audited_unit_liaison'])) return 'liaison'
   if (hasAnyRole(['rect_responsible'])) return 'rectifier'
@@ -215,6 +216,28 @@ const homes = {
       { title: '整改任务进展', desc: '查看任务状态和全流程进展时间线。', icon: 'EditPen', path: '/rectification/task', tone: 'blue' },
       { title: '逾期风险监督', desc: '关注逾期问题、高风险领域和重复问题。', icon: 'WarningFilled', path: '/rectification/statistics', tone: 'amber' },
       { title: '销号结果', desc: '查看最终整改报告和销号复核结果。', icon: 'CircleCheck', path: '/rectification/closure', tone: 'green' }
+    ]
+  },
+  externalAuditor: {
+    title: '项目整改跟踪工作台',
+    desc: '查看授权项目发现的问题及后续整改进展。',
+    workTitle: '授权项目入口',
+    workDesc: '仅展示当前服务期内已授权项目的整改信息。',
+    todoTitle: '项目跟踪',
+    todoDesc: '进入对应模块查看问题和任务进展。',
+    primary: { text: '项目问题', path: '/rectification/issue' },
+    secondary: { text: '整改进展', path: '/rectification/task' },
+    metrics: () => [
+      metric('projectIssues', '项目问题', '查看', 'List', '/rectification/issue', 'blue'),
+      metric('projectTasks', '整改进展', '查看', 'EditPen', '/rectification/task', 'amber')
+    ],
+    todos: () => [
+      { label: '授权项目问题', value: '查看', path: '/rectification/issue' },
+      { label: '关联整改任务', value: '查看', path: '/rectification/task' }
+    ],
+    actions: [
+      { title: '项目问题', desc: '查看授权项目发现的问题及整改状态。', icon: 'List', path: '/rectification/issue', tone: 'blue' },
+      { title: '整改进展', desc: '查看关联整改任务和进展时间线。', icon: 'EditPen', path: '/rectification/task', tone: 'amber' }
     ]
   },
   auditor: {
@@ -343,7 +366,7 @@ function normalizeOverview(data) {
 }
 
 function loadHomeData() {
-  if (homeType.value === 'systemAdmin') return
+  if (['systemAdmin', 'externalAuditor'].includes(homeType.value)) return
   getOverview().then(res => normalizeOverview(res.data || {})).catch(() => {})
 }
 

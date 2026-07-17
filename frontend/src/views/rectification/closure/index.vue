@@ -242,7 +242,7 @@
             @click="downloadAttachment(file)"
           >{{ file.fileName || file.name || '附件' }}</el-button>
         </div>
-        <span v-if="!viewData.attachments || viewData.attachments.length === 0" class="text-muted">暂无附件材料</span>
+        <span v-if="!isSchoolLeader && (!viewData.attachments || viewData.attachments.length === 0)" class="text-muted">暂无附件材料</span>
       </section>
 
       <section

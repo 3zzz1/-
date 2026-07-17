@@ -213,12 +213,13 @@ const isAuditStaff = computed(() => (userStore.roles || []).includes('audit_staf
 const isSchoolLeader = computed(() => (userStore.roles || []).includes('school_leader'))
 const isResponsible = computed(() => (userStore.roles || []).includes('rect_responsible'))
 const isSystemAdmin = computed(() => (userStore.roles || []).includes('admin'))
+const isExternalAuditor = computed(() => (userStore.roles || []).includes('external_auditor'))
 const isAuditViewer = computed(() => {
   const roles = userStore.roles || []
   return roles.some(role => ['audit_director', 'audit_lead', 'audit_staff'].includes(role))
 })
 const canViewPlan = computed(() => isResponsible.value)
-const canViewReport = computed(() => !isLiaison.value && !isSystemAdmin.value)
+const canViewReport = computed(() => !isLiaison.value && !isSystemAdmin.value && !isExternalAuditor.value)
 const canViewMaterials = computed(() => {
   if (isSchoolLeader.value || isSystemAdmin.value) return false
   const permissions = userStore.permissions || []
@@ -431,7 +432,7 @@ function handleMaterialUploaded() {
 }
 
 function goBack() {
-  router.push((isAuditStaff.value || isSchoolLeader.value) ? '/rectification/task' : '/rectification/my-tasks')
+  router.push((isAuditStaff.value || isSchoolLeader.value || isExternalAuditor.value) ? '/rectification/task' : '/rectification/my-tasks')
 }
 
 function loadPageContext() {

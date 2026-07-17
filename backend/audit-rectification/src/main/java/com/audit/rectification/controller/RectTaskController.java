@@ -25,6 +25,7 @@ import com.audit.rectification.domain.RectTask;
 import com.audit.rectification.domain.RectPlan;
 import com.audit.rectification.domain.dto.TaskDispatchDTO;
 import com.audit.rectification.mapper.RectPlanMapper;
+import com.audit.rectification.service.ExternalAuditorProjectScopeService;
 import com.audit.rectification.service.IRectTaskService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -51,6 +52,9 @@ public class RectTaskController extends BaseController {
 
     @Autowired
     private RectPlanMapper planMapper;
+
+    @Autowired
+    private ExternalAuditorProjectScopeService externalProjectScope;
 
     @PreAuthorize("@ss.hasAnyExactRoles('audit_director,audit_lead') and @ss.hasAnyPermi('rectification:task:dispatch,rectification:task:batchDispatch')")
     @GetMapping("/liaisons")
@@ -102,6 +106,7 @@ public class RectTaskController extends BaseController {
     @PreAuthorize("@ss.hasPermi('rectification:task:list')")
     @GetMapping("/list")
     public TableDataInfo list(RectTask task) {
+        externalProjectScope.applyTaskScope(task);
         startPage();
         List<RectTask> list = rectTaskService.selectRectTaskList(task);
         return getDataTable(list);
@@ -124,7 +129,9 @@ public class RectTaskController extends BaseController {
     @PreAuthorize("@ss.hasPermi('rectification:task:query')")
     @GetMapping(value = "/{taskId}")
     public AjaxResult getInfo(@PathVariable Long taskId) {
-        return success(rectTaskService.selectRectTaskById(taskId));
+        RectTask task = rectTaskService.selectRectTaskById(taskId);
+        externalProjectScope.checkTaskAccess(task);
+        return success(task);
     }
 
     /**
@@ -170,6 +177,7 @@ public class RectTaskController extends BaseController {
     @PreAuthorize("@ss.hasPermi('rectification:task:notice') or @ss.hasPermi('rectification:task:query')")
     @PostMapping("/notice/{taskId}")
     public void generateNotice(@PathVariable Long taskId, HttpServletResponse response) {
+        externalProjectScope.checkTaskAccess(rectTaskService.selectRectTaskById(taskId));
         rectTaskService.generateNotice(taskId, response);
     }
 

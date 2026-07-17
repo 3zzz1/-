@@ -91,10 +91,12 @@ INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_liaison, menu_id FROM 
     'rectification:closure:query',
     'rectification:progress:query','rectification:notification:query');
 
--- 中介：仅材料上传
+-- 中介：仅查看有效授权项目的问题和整改进展
 INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_agent, menu_id FROM sys_menu WHERE perms IN (
-    'rectification:material:list','rectification:material:upload',
-    'rectification:task:myList','rectification:task:query');
+    'rectification:issue:list','rectification:issue:query',
+    'rectification:task:list','rectification:task:query',
+    'rectification:progress:query');
+INSERT INTO sys_role_menu (role_id, menu_id) SELECT @role_agent, menu_id FROM sys_menu WHERE path='rectification' AND menu_type='M';
 
 -- 5. admin保留系统管理员角色，审计处长使用独立业务账号
 INSERT IGNORE INTO sys_user_role (user_id, role_id)
@@ -103,38 +105,38 @@ WHERE u.user_name='admin';
 
 -- 6. 创建示例用户 (密码: admin123)
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time)
-SELECT 'director01', '张处长', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200,
+SELECT 'director01', '张明远', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200,
        'director01@university.edu.cn', '13900000000', '0', '0', 'admin', sysdate()
 WHERE NOT EXISTS (SELECT 1 FROM sys_user WHERE user_name='director01');
 SET @uid = (SELECT user_id FROM sys_user WHERE user_name='director01' LIMIT 1);
 INSERT IGNORE INTO sys_user_role VALUES (@uid, @role_director);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('school01', '校领导A', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'school01@university.edu.cn', '13900000001', '0', '0', 'admin', sysdate());
+('school01', '李建国', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'school01@university.edu.cn', '13900000001', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_school);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('lead01', '张组长', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'lead01@university.edu.cn', '13900000002', '0', '0', 'admin', sysdate());
+('lead01', '陈志强', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'lead01@university.edu.cn', '13900000002', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_lead);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('staff01', '王审计', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'staff01@university.edu.cn', '13900000003', '0', '0', 'admin', sysdate());
+('staff01', '王海峰', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200, 'staff01@university.edu.cn', '13900000003', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_staff);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('unit01', '经管学院负责人', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 201, 'unit01@university.edu.cn', '13900000004', '0', '0', 'admin', sysdate());
+('unit01', '李志华', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 201, 'unit01@university.edu.cn', '13900000004', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_leader);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('link01', '经管学院联络员', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 201, 'link01@university.edu.cn', '13900000005', '0', '0', 'admin', sysdate());
+('link01', '陈晓玲', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 201, 'link01@university.edu.cn', '13900000005', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_liaison);
 
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time) VALUES
-('agent01', '中介审计员', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 205, 'agent01@university.edu.cn', '13900000006', '0', '0', 'admin', sysdate());
+('agent01', '高俊杰', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 205, 'agent01@university.edu.cn', '13900000006', '0', '0', 'admin', sysdate());
 SET @uid = LAST_INSERT_ID();
 INSERT INTO sys_user_role VALUES (@uid, @role_agent);

@@ -27,4 +27,8 @@ Thumbs.db
 # 临时文件
 temp/
 tmp/
+.tmp/
+.tmp-*/
+backend/ruoyi-admin/.tmp*/
+frontend/vite.config.js.timestamp-*.mjs
 upload

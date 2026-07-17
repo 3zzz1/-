@@ -59,7 +59,7 @@
     </el-form>
     <!--  底部  -->
     <div class="el-login-footer">
-      <span>Copyright © 2018-2023 ruoyi.vip All Rights Reserved.</span>
+      <span>Copyright © 2026 智慧审计平台</span>
     </div>
   </div>
 </template>
@@ -167,9 +167,16 @@ getCookie();
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  box-sizing: border-box;
   height: 100%;
-  background-image: url("../assets/images/login-background.jpg");
+  padding: 24px;
+  background-color: rgba(235, 241, 244, 0.24);
+  background-image: url("../assets/images/login-audit-minimal-office.jpg");
+  background-blend-mode: screen;
   background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .title {
   margin: 0px auto 30px auto;
@@ -178,10 +185,15 @@ getCookie();
 }
 
 .login-form {
+  position: relative;
+  z-index: 1;
   border-radius: 6px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.95);
   width: 400px;
   padding: 25px 25px 5px 25px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 46px rgba(25, 49, 68, 0.2);
+  backdrop-filter: blur(8px);
   .el-input {
     height: 40px;
     input {
@@ -219,9 +231,25 @@ getCookie();
   font-family: Arial;
   font-size: 12px;
   letter-spacing: 1px;
+  text-shadow: 0 1px 3px rgba(20, 38, 52, 0.65);
+  z-index: 1;
 }
 .login-code-img {
   height: 40px;
   padding-left: 12px;
+}
+
+@media (max-width: 768px) {
+  .login {
+    padding: 18px;
+    background-position: 46% center;
+  }
+
+  .login-form {
+    width: calc(100% - 36px);
+    max-width: 400px;
+    box-sizing: border-box;
+    padding: 24px 20px 6px;
+  }
 }
 </style>

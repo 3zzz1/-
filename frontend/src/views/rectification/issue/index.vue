@@ -358,7 +358,7 @@
           <el-tag :type="sourceTypeTag(detail.sourceType)">{{ sourceTypeLabel(detail.sourceType) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="问题标题" :span="2">{{ detail.issueTitle }}</el-descriptions-item>
-        <el-descriptions-item label="问题分类">{{ detail.issueCategory }}</el-descriptions-item>
+        <el-descriptions-item label="问题分类">{{ categoryLabel(detail.issueCategory) }}</el-descriptions-item>
         <el-descriptions-item v-if="!isSchoolLeader" label="涉及金额">{{ detail.issueAmount ? detail.issueAmount.toLocaleString() : '-' }}</el-descriptions-item>
         <el-descriptions-item label="问题责任单位">{{ deptName(detail.responsibleDeptId) }}</el-descriptions-item>
         <el-descriptions-item label="直接责任人">{{ detail.responsiblePerson }}</el-descriptions-item>
@@ -491,6 +491,11 @@ function sourceTypeTag(val) {
 function statusLabel(val) {
   const item = statusOptions.value.find(d => d.value === val)
   return item ? item.label : val
+}
+
+function categoryLabel(val) {
+  const item = categoryOptions.value.find(d => d.value === val)
+  return item ? item.label : (val || '-')
 }
 
 function statusTag(val) {

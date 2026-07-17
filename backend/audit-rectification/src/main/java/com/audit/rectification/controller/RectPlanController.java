@@ -73,7 +73,7 @@ public class RectPlanController extends BaseController {
         return success(rectExtensionService.selectLatestByTaskId(taskId));
     }
 
-    @PreAuthorize("@ss.hasAnyExactRoles('audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
+    @PreAuthorize("@ss.hasAnyExactRoles('audited_unit_leader,audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
     @GetMapping("/change/pending")
     public AjaxResult pendingChanges() {
         List<RectExtension> list = rectExtensionService.selectPendingList();
@@ -139,7 +139,7 @@ public class RectPlanController extends BaseController {
     /**
      * 审批延期申请
      */
-    @PreAuthorize("@ss.hasAnyExactRoles('audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
+    @PreAuthorize("@ss.hasAnyExactRoles('audited_unit_leader,audit_director,audit_lead') and @ss.hasPermi('rectification:plan:change:approve')")
     @PutMapping("/extension/approve")
     public AjaxResult approveExtension(@RequestBody Map<String, Object> params) {
         Long extensionId = params.get("extensionId") != null

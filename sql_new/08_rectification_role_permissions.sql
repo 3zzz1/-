@@ -1,4 +1,4 @@
--- 审计角色和权限修正，可在已有数据库重复执行
+-- 审计整改角色权限统一配置，可在已有数据库重复执行
 SET @role_admin = (SELECT role_id FROM sys_role WHERE role_key='admin' LIMIT 1);
 SET @role_director = (SELECT role_id FROM sys_role WHERE role_key='audit_director' LIMIT 1);
 SET @role_lead = (SELECT role_id FROM sys_role WHERE role_key='audit_lead' LIMIT 1);
@@ -22,9 +22,10 @@ WHERE recipient_user_id = (SELECT user_id FROM sys_user WHERE user_name='admin' 
 
 -- 审计处长为独立业务账号（密码：admin123）。
 INSERT INTO sys_user (user_name, nick_name, password, dept_id, email, phonenumber, sex, status, create_by, create_time)
-SELECT 'director01', '张处长', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200,
+SELECT 'director01', '张明远', '$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2', 200,
        'director01@university.edu.cn', '13900000000', '0', '0', 'admin', sysdate()
 WHERE NOT EXISTS (SELECT 1 FROM sys_user WHERE user_name='director01');
+UPDATE sys_user SET nick_name='张明远' WHERE user_name='director01';
 UPDATE sys_user
 SET password='$2a$10$7JB720yubVSZvUI0rEqK/.VqGOZTH.ulu33dHOiBE8ByOhJIrdAu2'
 WHERE user_name='director01' AND (password IS NULL OR LENGTH(password)<>60);
@@ -76,3 +77,38 @@ SELECT @role_school, menu_id FROM sys_menu WHERE perms IN (
     'rectification:report:query','rectification:closure:list','rectification:closure:query',
     'rectification:statistics:view','rectification:progress:query','rectification:notification:query'
 ) OR (path='rectification' AND menu_type='M');
+
+-- 中介机构人员：仅查看有效授权项目的问题和整改进展。
+DELETE rm FROM sys_role_menu rm
+JOIN sys_menu m ON m.menu_id=rm.menu_id
+WHERE rm.role_id=(SELECT role_id FROM sys_role WHERE role_key='external_auditor' LIMIT 1)
+  AND (m.perms LIKE 'rectification:%' OR m.path='rectification');
+INSERT IGNORE INTO sys_role_menu (role_id, menu_id)
+SELECT (SELECT role_id FROM sys_role WHERE role_key='external_auditor' LIMIT 1), menu_id
+FROM sys_menu
+WHERE perms IN (
+    'rectification:issue:list','rectification:issue:query',
+    'rectification:task:list','rectification:task:query',
+    'rectification:progress:query'
+) OR (path='rectification' AND menu_type='M');
+
+-- 被审单位联络员仅负责接收、分办和协调，不查看整改方案及报告正文。
+SET @role_liaison = (SELECT role_id FROM sys_role WHERE role_key='audited_unit_liaison' LIMIT 1);
+
+DELETE rm
+FROM sys_role_menu rm
+JOIN sys_menu m ON m.menu_id=rm.menu_id
+WHERE rm.role_id=@role_liaison
+  AND m.perms IN (
+    'rectification:plan:query',
+    'rectification:plan:edit',
+    'rectification:plan:extension',
+    'rectification:plan:longTerm',
+    'rectification:report:query',
+    'rectification:report:add',
+    'rectification:report:submit',
+    'rectification:closure:apply'
+  );
+
+-- 中介项目授权写入 sys_user_role_timed：project_id 对应 rect_issue.source_project_id。
+-- effective_time <= 当前时间、expire_time >= 当前时间且 status='0' 时授权有效。

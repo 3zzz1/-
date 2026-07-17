@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.audit.rectification.domain.RectIssue;
+import com.audit.rectification.service.ExternalAuditorProjectScopeService;
 import com.audit.rectification.service.IRectIssueService;
 import com.ruoyi.common.core.controller.BaseController;
 import com.ruoyi.common.core.domain.AjaxResult;
@@ -40,6 +41,9 @@ public class RectIssueController extends BaseController {
     @Autowired
     private SysUserMapper userMapper;
 
+    @Autowired
+    private ExternalAuditorProjectScopeService externalProjectScope;
+
     @GetMapping("/depts")
     public AjaxResult depts() {
         return success(deptService.selectDeptList(new SysDept()));
@@ -57,6 +61,7 @@ public class RectIssueController extends BaseController {
     @PreAuthorize("@ss.hasPermi('rectification:issue:list')")
     @GetMapping("/list")
     public TableDataInfo list(RectIssue issue) {
+        externalProjectScope.applyIssueScope(issue);
         startPage();
         List<RectIssue> list = rectIssueService.selectRectIssueList(issue);
         if (SecurityUtils.hasExactRole("school_leader")) {
@@ -69,6 +74,7 @@ public class RectIssueController extends BaseController {
     @GetMapping(value = "/{issueId}")
     public AjaxResult getInfo(@PathVariable Long issueId) {
         RectIssue issue = rectIssueService.selectRectIssueById(issueId);
+        externalProjectScope.checkIssueAccess(issue);
         if (SecurityUtils.hasExactRole("school_leader")) {
             maskSchoolLeaderDetails(issue);
         }

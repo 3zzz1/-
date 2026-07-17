@@ -46,6 +46,9 @@ const iconColors = [
 
 <style scoped lang="scss">
 .overview-card {
+  width: 100%;
+  height: 112px;
+  box-sizing: border-box;
   border-radius: 8px;
   padding: 20px 24px;
   color: #fff;
@@ -60,6 +63,7 @@ const iconColors = [
 
   .card-content {
     display: flex;
+    height: 100%;
     justify-content: space-between;
     align-items: center;
   }
@@ -102,6 +106,10 @@ const iconColors = [
 
 .overview-grid {
   row-gap: 16px;
+
+  :deep(.el-col) {
+    display: flex;
+  }
 }
 
 @media (max-width: 768px) {
@@ -110,7 +118,7 @@ const iconColors = [
   }
 
   .overview-card {
-    min-height: 104px;
+    height: 112px;
     padding: 14px;
 
     .card-content {

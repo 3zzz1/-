@@ -41,6 +41,21 @@
             <if test="status != null and status != ''">and status = #{status}</if>
             <if test="contactPerson != null and contactPerson != ''">and contact_person like concat('%', #{contactPerson}, '%')</if>
             <if test="rectDeptId != null">and rect_dept_id = #{rectDeptId}</if>
+            <if test="params.externalProjectIds != null">
+                and exists (
+                    select 1
+                    from rect_issue i
+                    where i.del_flag = '0'
+                    and i.source_project_id in
+                    <foreach collection="params.externalProjectIds" item="projectId" open="(" separator="," close=")">
+                        #{projectId}
+                    </foreach>
+                    and find_in_set(
+                        cast(i.issue_id as char),
+                        replace(replace(replace(t.issue_ids, '[', ''), ']', ''), ' ', '')
+                    ) &gt; 0
+                )
+            </if>
             and del_flag = '0'
         </where>
         order by coalesce(update_time, confirm_time, dispatch_time, create_time) desc, task_id desc

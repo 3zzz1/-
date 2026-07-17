@@ -48,6 +48,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="riskLevel != null and riskLevel != ''">and risk_level = #{riskLevel}</if>
             <if test="responsibleDeptId != null">and responsible_dept_id = #{responsibleDeptId}</if>
             <if test="responsiblePerson != null and responsiblePerson != ''">and responsible_person like concat('%', #{responsiblePerson}, '%')</if>
+            <if test="params.externalProjectIds != null">
+                and source_project_id in
+                <foreach collection="params.externalProjectIds" item="projectId" open="(" separator="," close=")">
+                    #{projectId}
+                </foreach>
+            </if>
             and del_flag = '0'
         </where>
         order by coalesce(update_time, closure_date, create_time) desc, issue_id desc
